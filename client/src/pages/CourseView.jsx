@@ -14,6 +14,12 @@ import {
   Award,
   FileText,
   Loader,
+  X,
+  ChevronLeft,
+  ArrowRight,
+  ArrowLeft,
+  Monitor,
+  PanelLeftClose,
 } from "lucide-react";
 
 const CourseView = () => {
@@ -30,6 +36,10 @@ const CourseView = () => {
   const [lessonContents, setLessonContents] = useState({});
   const [loadingLessons, setLoadingLessons] = useState({});
   const [expandedSections, setExpandedSections] = useState({});
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [currentLessonData, setCurrentLessonData] = useState(null);
 
   /** ✅ Fetch Course from MongoDB on Mount */
   useEffect(() => {
@@ -48,6 +58,49 @@ const CourseView = () => {
     fetchCourse();
   }, [courseId]);
 
+  /** ✅ Get all lessons in order for navigation */
+  const getAllLessons = () => {
+    if (!courseData?.sections) return [];
+    const allLessons = [];
+    courseData.sections.forEach((section, sIndex) => {
+      section.lessons?.forEach((lesson, lIndex) => {
+        allLessons.push({
+          ...lesson,
+          sectionId: section.id || `section-${sIndex}`,
+          sectionTitle: section.title,
+          lessonKey: `${section.id || `section-${sIndex}`}-${lesson.id || lIndex}`,
+          globalIndex: allLessons.length,
+        });
+      });
+    });
+    return allLessons;
+  };
+
+  /** ✅ Get current lesson index */
+  const getCurrentLessonIndex = () => {
+    if (!currentLessonData) return -1;
+    const allLessons = getAllLessons();
+    return allLessons.findIndex(lesson => lesson.lessonKey === currentLessonData.lessonKey);
+  };
+
+  /** ✅ Navigate to next/previous lesson */
+  const navigateLesson = async (direction) => {
+    const allLessons = getAllLessons();
+    const currentIndex = getCurrentLessonIndex();
+    let newIndex;
+
+    if (direction === 'next') {
+      newIndex = currentIndex + 1;
+    } else {
+      newIndex = currentIndex - 1;
+    }
+
+    if (newIndex >= 0 && newIndex < allLessons.length) {
+      const nextLesson = allLessons[newIndex];
+      await openLessonModal(nextLesson, courseData.title, nextLesson.sectionId);
+    }
+  };
+
   /** ✅ Toggle Section Expand/Collapse */
   const toggleSection = (sectionId) => {
     setExpandedSections((prev) => ({
@@ -56,22 +109,21 @@ const CourseView = () => {
     }));
   };
 
-  /** ✅ Fetch Lesson Content from Backend */
-  const toggleLessonContent = async (e, lesson, topic, sectionId) => {
-    e.preventDefault();
-    e.stopPropagation();
-
+  /** ✅ Open Lesson Modal */
+  const openLessonModal = async (lesson, topic, sectionId) => {
     const lessonKey = `${sectionId}-${lesson.id}`;
+    
+    // Set current lesson data
+    const lessonData = {
+      ...lesson,
+      lessonKey,
+      sectionId,
+      topic,
+    };
+    setCurrentLessonData(lessonData);
+    setModalOpen(true);
 
-    // ✅ Collapse if clicked again
-    if (activeLesson === lessonKey) {
-      setActiveLesson(null);
-      return;
-    }
-
-    setActiveLesson(lessonKey);
-
-    // ✅ Skip fetch if already loaded
+    // Skip fetch if already loaded
     if (lessonContents[lessonKey]) return;
 
     setLoadingLessons((prev) => ({ ...prev, [lessonKey]: true }));
@@ -101,6 +153,19 @@ const CourseView = () => {
     }
   };
 
+  /** ✅ Close Modal */
+  const closeModal = () => {
+    setModalOpen(false);
+    setCurrentLessonData(null);
+  };
+
+  /** ✅ Handle lesson click */
+  const handleLessonClick = async (e, lesson, topic, sectionId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await openLessonModal(lesson, topic, sectionId);
+  };
+
   /** ✅ Progress Calculation */
   const calculateProgress = () => {
     if (!courseData?.sections) return 0;
@@ -116,6 +181,11 @@ const CourseView = () => {
   if (loadingCourse) return <div className="text-white p-10">Loading course...</div>;
   if (error) return <div className="text-red-400 p-10">Error: {error}</div>;
   if (!courseData) return <div className="text-white p-10">No course data found</div>;
+
+  const allLessons = getAllLessons();
+  const currentIndex = getCurrentLessonIndex();
+  const canGoNext = currentIndex < allLessons.length - 1;
+  const canGoPrev = currentIndex > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-950 via-purple-900 to-indigo-950 font-inter">
@@ -194,16 +264,13 @@ const CourseView = () => {
                     <div className="px-6 pb-4 space-y-2">
                       {section.lessons?.map((lesson, lIndex) => {
                         const lessonKey = `${sectionId}-${lesson.id || lIndex}`;
-                        const isExpanded = activeLesson === lessonKey;
-                        const isLoading = loadingLessons[lessonKey];
-                        const content = lessonContents[lessonKey];
 
                         return (
                           <div key={lessonKey} className="space-y-2">
                             {/* Lesson Item */}
                             <div
-                              className="flex justify-between items-center p-4 bg-black/20 rounded-lg hover:bg-black/30 cursor-pointer"
-                              onClick={(e) => toggleLessonContent(e, lesson, courseData.title, sectionId)}
+                              className="flex justify-between items-center p-4 bg-black/20 rounded-lg hover:bg-black/30 cursor-pointer transition-colors"
+                              onClick={(e) => handleLessonClick(e, lesson, courseData.title, sectionId)}
                             >
                               <div className="flex items-center space-x-3">
                                 {lesson.completed ? <CheckCircle className="text-green-400" /> : <Circle className="text-white/40" />}
@@ -213,20 +280,10 @@ const CourseView = () => {
                                 </div>
                               </div>
                               <div className="flex items-center space-x-2">
-                                {isLoading && <Loader className="animate-spin text-white/60" />}
                                 <FileText className="text-white/60" />
-                                {isExpanded ? <ChevronDown className="text-white/60" /> : <ChevronRight className="text-white/60" />}
+                                <ChevronRight className="text-white/60" />
                               </div>
                             </div>
-
-                            {/* Lesson Content */}
-                            {isExpanded && content && (
-                              <div className="text-white ml-8 mr-4 p-6 bg-black/30 rounded-xl border border-white/10">
-                                <div className="prose prose-invert max-w-none">
-                                  <ReactMarkdown>{content}</ReactMarkdown>
-                                </div>
-                              </div>
-                            )}
                           </div>
                         );
                       })}
@@ -259,17 +316,264 @@ const CourseView = () => {
           </div>
         </div>
       </div>
+
+      {/* ✅ Enhanced Lesson Modal */}
+      {modalOpen && currentLessonData && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50 p-4">
+          {/* Modal Container - Portrait orientation */}
+          <div className="w-full max-w-4xl h-[90vh] flex">
+            {/* Left Side - Lesson Navigation Panel */}
+            <div className="w-80 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border border-slate-700/50 rounded-l-2xl flex flex-col shadow-2xl">
+              {/* Navigation Header */}
+              <div className="p-6 border-b border-slate-700/50">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-2">
+                    <Monitor className="w-5 h-5 text-purple-400" />
+                    <span className="text-white font-semibold">Course Navigation</span>
+                  </div>
+                  <button
+                    onClick={closeModal}
+                    className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-700/50 transition-all duration-200"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                {/* Current Lesson Info */}
+                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-600/30">
+                  <h3 className="text-white font-medium text-sm mb-1">{currentLessonData.title}</h3>
+                  <p className="text-slate-400 text-xs">{allLessons.find(l => l.lessonKey === currentLessonData.lessonKey)?.sectionTitle}</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-purple-400 text-xs font-medium">
+                      Lesson {currentIndex + 1} of {allLessons.length}
+                    </span>
+                    <div className="w-16 h-1 bg-slate-700 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300"
+                        style={{ width: `${((currentIndex + 1) / allLessons.length) * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation Controls */}
+              <div className="p-6 space-y-3">
+                <button
+                  onClick={() => navigateLesson('prev')}
+                  disabled={!canGoPrev}
+                  className={`w-full flex items-center justify-center space-x-3 py-3 px-4 rounded-xl transition-all duration-200 font-medium ${
+                    canGoPrev 
+                      ? 'bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white shadow-lg hover:shadow-xl border border-slate-600/50' 
+                      : 'bg-slate-800/50 text-slate-500 cursor-not-allowed border border-slate-700/30'
+                  }`}
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Previous Lesson</span>
+                </button>
+
+                <button
+                  onClick={() => navigateLesson('next')}
+                  disabled={!canGoNext}
+                  className={`w-full flex items-center justify-center space-x-3 py-3 px-4 rounded-xl transition-all duration-200 font-medium ${
+                    canGoNext 
+                      ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg hover:shadow-xl border border-purple-500/50' 
+                      : 'bg-slate-800/50 text-slate-500 cursor-not-allowed border border-slate-700/30'
+                  }`}
+                >
+                  <span>Next Lesson</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Course Progress */}
+              <div className="flex-1 p-6">
+                <h4 className="text-white font-medium mb-4 text-sm">Course Progress</h4>
+                <div className="space-y-3">
+                  {courseData.sections?.map((section, sIndex) => {
+                    const completedLessons = section.lessons?.filter(l => l.completed).length || 0;
+                    const totalLessons = section.lessons?.length || 0;
+                    const sectionProgress = totalLessons ? (completedLessons / totalLessons) * 100 : 0;
+                    
+                    return (
+                      <div key={section.id} className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-slate-300 text-xs font-medium">{section.title}</span>
+                          <span className="text-slate-400 text-xs">{completedLessons}/{totalLessons}</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-300"
+                            style={{ width: `${sectionProgress}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side - Lesson Content */}
+            <div className="flex-1 bg-white rounded-r-2xl shadow-2xl overflow-hidden border border-gray-200/50 flex flex-col">
+              {/* Content Header */}
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200/50 p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h1 className="text-2xl font-bold text-gray-900 mb-2 leading-tight">
+                      {currentLessonData.title}
+                    </h1>
+                    <div className="flex items-center space-x-4 text-sm text-gray-600">
+                      <div className="flex items-center space-x-1">
+                        <Clock className="w-4 h-4" />
+                        <span>{currentLessonData.duration || "N/A"}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <BookOpen className="w-4 h-4" />
+                        <span>{allLessons.find(l => l.lessonKey === currentLessonData.lessonKey)?.sectionTitle}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
+                    {currentIndex + 1}/{allLessons.length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Scrollable Content Area */}
+              <div className="flex-1 overflow-auto">
+                <div className="p-8">
+                  {loadingLessons[currentLessonData.lessonKey] ? (
+                    <div className="flex flex-col items-center justify-center h-96 space-y-4">
+                      <div className="relative">
+                        <div className="w-16 h-16 border-4 border-purple-200 rounded-full"></div>
+                        <div className="absolute top-0 left-0 w-16 h-16 border-4 border-purple-600 rounded-full border-t-transparent animate-spin"></div>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-gray-700 font-medium">Loading lesson content...</p>
+                        <p className="text-gray-500 text-sm mt-1">Preparing your learning experience</p>
+                      </div>
+                    </div>
+                  ) : lessonContents[currentLessonData.lessonKey] ? (
+                    <div className="prose prose-gray prose-lg max-w-none">
+                      <ReactMarkdown 
+                        components={{
+                          h1: ({children}) => (
+                            <h1 className="text-3xl font-bold text-gray-900 mb-6 pb-4 border-b-2 border-gradient-to-r from-purple-500 to-blue-500" 
+                                style={{borderImage: 'linear-gradient(90deg, #8b5cf6, #3b82f6) 1'}}>
+                              {children}
+                            </h1>
+                          ),
+                          h2: ({children}) => (
+                            <h2 className="text-2xl font-bold text-gray-800 mt-8 mb-4 flex items-center">
+                              <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-blue-500 rounded-full mr-3"></div>
+                              {children}
+                            </h2>
+                          ),
+                          h3: ({children}) => (
+                            <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3 flex items-center">
+                              <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
+                              {children}
+                            </h3>
+                          ),
+                          p: ({children}) => <p className="text-gray-700 leading-relaxed mb-5 text-base">{children}</p>,
+                          ul: ({children}) => <ul className="text-gray-700 mb-5 pl-6 space-y-2">{children}</ul>,
+                          ol: ({children}) => <ol className="text-gray-700 mb-5 pl-6 space-y-2">{children}</ol>,
+                          li: ({children}) => <li className="relative pl-2">{children}</li>,
+                          code: ({inline, children}) => 
+                            inline ? 
+                              <code className="bg-purple-50 text-purple-700 px-2 py-1 rounded-md text-sm font-mono border border-purple-200">{children}</code> :
+                              <code className="block bg-gray-900 text-green-400 p-6 rounded-xl text-sm font-mono overflow-x-auto mb-6 border border-gray-700 shadow-inner">{children}</code>,
+                          pre: ({children}) => (
+                            <div className="relative">
+                              <pre className="bg-gray-900 rounded-xl p-6 mb-6 overflow-x-auto border border-gray-700 shadow-2xl">{children}</pre>
+                              <div className="absolute top-4 right-4 flex space-x-1">
+                                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                              </div>
+                            </div>
+                          ),
+                          blockquote: ({children}) => (
+                            <blockquote className="border-l-4 border-gradient-to-b from-purple-500 to-blue-500 bg-gradient-to-r from-purple-50 to-blue-50 pl-6 pr-4 py-4 italic text-gray-700 my-6 rounded-r-lg shadow-sm">
+                              {children}
+                            </blockquote>
+                          ),
+                          strong: ({children}) => <strong className="font-semibold text-gray-900 bg-yellow-100 px-1 rounded">{children}</strong>,
+                        }}
+                      >
+                        {lessonContents[currentLessonData.lessonKey]}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-96 space-y-4">
+                      <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+                        <FileText className="w-10 h-10 text-gray-400" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-gray-700 font-medium">No content available</p>
+                        <p className="text-gray-500 text-sm">This lesson content couldn't be loaded.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Content Footer - Action Bar */}
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-t border-gray-200/50 p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <button className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg">
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Mark Complete</span>
+                    </button>
+                    <button className="flex items-center space-x-2 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium transition-all duration-200">
+                      <Star className="w-4 h-4" />
+                      <span>Bookmark</span>
+                    </button>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => navigateLesson('prev')}
+                      disabled={!canGoPrev}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 font-medium ${
+                        canGoPrev 
+                          ? 'bg-slate-200 hover:bg-slate-300 text-slate-700 shadow-md hover:shadow-lg' 
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>Prev</span>
+                    </button>
+
+                    <button
+                      onClick={() => navigateLesson('next')}
+                      disabled={!canGoNext}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 font-medium ${
+                        canGoNext 
+                          ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg hover:shadow-xl' 
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <span>Next</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default CourseView;
-
-
-
-// import React, { useState } from "react";
-// import { useSelector } from "react-redux";
-// import { useNavigate } from "react-router-dom";
+// import React, { useState, useEffect } from "react";
+// import { useParams, useNavigate } from "react-router-dom";
+// import ReactMarkdown from "react-markdown";
 // import {
 //   Play,
 //   Clock,
@@ -282,43 +586,93 @@ export default CourseView;
 //   Circle,
 //   Award,
 //   FileText,
+//   Loader,
+//   X,
+//   ChevronLeft,
+//   ArrowRight,
+//   ArrowLeft,
 // } from "lucide-react";
 
 // const CourseView = () => {
-//   const rawCourseData = useSelector((state) => state.course.currentCourse);
-//   const [expandedSections, setExpandedSections] = useState({});
-//   const [activeLesson, setActiveLesson] = useState(null);
-//   const [quizAnswers, setQuizAnswers] = useState({});
-//   const [showQuiz, setShowQuiz] = useState(false);
-//   const [selectedLesson, setSelectedLesson] = useState(null);
-
+//   /** ✅ Get course ID from URL */
+//   const { courseId } = useParams();
 //   const navigate = useNavigate();
 
-//   // ✅ 1. Parse only course structure (no lesson content expected yet)
-//   let courseData = null;
-//   if (rawCourseData) {
-//     const raw = rawCourseData.course;
-//     if (typeof raw === "string") {
+//   /** ✅ State */
+//   const [courseData, setCourseData] = useState(null);
+//   const [loadingCourse, setLoadingCourse] = useState(true);
+//   const [error, setError] = useState(null);
+
+//   const [activeLesson, setActiveLesson] = useState(null);
+//   const [lessonContents, setLessonContents] = useState({});
+//   const [loadingLessons, setLoadingLessons] = useState({});
+//   const [expandedSections, setExpandedSections] = useState({});
+
+//   // Modal state
+//   const [modalOpen, setModalOpen] = useState(false);
+//   const [currentLessonData, setCurrentLessonData] = useState(null);
+
+//   /** ✅ Fetch Course from MongoDB on Mount */
+//   useEffect(() => {
+//     const fetchCourse = async () => {
 //       try {
-//         const start = raw.indexOf("{");
-//         const end = raw.lastIndexOf("}");
-//         if (start !== -1 && end !== -1 && end > start) {
-//           const jsonString = raw.slice(start, end + 1);
-//           courseData = JSON.parse(jsonString);
-//         } else {
-//           console.error("⚠️ Could not find valid JSON bounds.");
-//         }
-//       } catch (e) {
-//         console.error("❌ Failed to parse course JSON:", e);
+//         const res = await fetch(`http://localhost:5000/api/courses/${courseId}`);
+//         if (!res.ok) throw new Error("Failed to fetch course data");
+//         const data = await res.json();
+//         setCourseData(data);
+//       } catch (err) {
+//         setError(err.message);
+//       } finally {
+//         setLoadingCourse(false);
 //       }
-//     } else if (typeof raw === "object") {
-//       courseData = raw;
+//     };
+//     fetchCourse();
+//   }, [courseId]);
+
+//   /** ✅ Get all lessons in order for navigation */
+//   const getAllLessons = () => {
+//     if (!courseData?.sections) return [];
+//     const allLessons = [];
+//     courseData.sections.forEach((section, sIndex) => {
+//       section.lessons?.forEach((lesson, lIndex) => {
+//         allLessons.push({
+//           ...lesson,
+//           sectionId: section.id || `section-${sIndex}`,
+//           sectionTitle: section.title,
+//           lessonKey: `${section.id || `section-${sIndex}`}-${lesson.id || lIndex}`,
+//           globalIndex: allLessons.length,
+//         });
+//       });
+//     });
+//     return allLessons;
+//   };
+
+//   /** ✅ Get current lesson index */
+//   const getCurrentLessonIndex = () => {
+//     if (!currentLessonData) return -1;
+//     const allLessons = getAllLessons();
+//     return allLessons.findIndex(lesson => lesson.lessonKey === currentLessonData.lessonKey);
+//   };
+
+//   /** ✅ Navigate to next/previous lesson */
+//   const navigateLesson = async (direction) => {
+//     const allLessons = getAllLessons();
+//     const currentIndex = getCurrentLessonIndex();
+//     let newIndex;
+
+//     if (direction === 'next') {
+//       newIndex = currentIndex + 1;
+//     } else {
+//       newIndex = currentIndex - 1;
 //     }
-//   }
 
-//   console.log("📦 Parsed course structure:", courseData);
+//     if (newIndex >= 0 && newIndex < allLessons.length) {
+//       const nextLesson = allLessons[newIndex];
+//       await openLessonModal(nextLesson, courseData.title, nextLesson.sectionId);
+//     }
+//   };
 
-//   // ✅ 2. Toggle section open/close
+//   /** ✅ Toggle Section Expand/Collapse */
 //   const toggleSection = (sectionId) => {
 //     setExpandedSections((prev) => ({
 //       ...prev,
@@ -326,326 +680,310 @@ export default CourseView;
 //     }));
 //   };
 
-//   // ✅ 3. Handle progress calculation (still works)
+//   /** ✅ Open Lesson Modal */
+//   const openLessonModal = async (lesson, topic, sectionId) => {
+//     const lessonKey = `${sectionId}-${lesson.id}`;
+    
+//     // Set current lesson data
+//     const lessonData = {
+//       ...lesson,
+//       lessonKey,
+//       sectionId,
+//       topic,
+//     };
+//     setCurrentLessonData(lessonData);
+//     setModalOpen(true);
+
+//     // Skip fetch if already loaded
+//     if (lessonContents[lessonKey]) return;
+
+//     setLoadingLessons((prev) => ({ ...prev, [lessonKey]: true }));
+
+//     try {
+//       const res = await fetch("http://localhost:5000/api/courses/generate-lesson-content", {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify({ topic, lessonTitle: lesson.title }),
+//       });
+
+//       if (!res.ok) throw new Error("Failed to fetch lesson content");
+//       const data = await res.json();
+
+//       setLessonContents((prev) => ({
+//         ...prev,
+//         [lessonKey]: data.content,
+//       }));
+//     } catch (err) {
+//       console.error("❌ Lesson fetch error:", err);
+//     } finally {
+//       setLoadingLessons((prev) => {
+//         const updated = { ...prev };
+//         delete updated[lessonKey];
+//         return updated;
+//       });
+//     }
+//   };
+
+//   /** ✅ Close Modal */
+//   const closeModal = () => {
+//     setModalOpen(false);
+//     setCurrentLessonData(null);
+//   };
+
+//   /** ✅ Handle lesson click */
+//   const handleLessonClick = async (e, lesson, topic, sectionId) => {
+//     e.preventDefault();
+//     e.stopPropagation();
+//     await openLessonModal(lesson, topic, sectionId);
+//   };
+
+//   /** ✅ Progress Calculation */
 //   const calculateProgress = () => {
 //     if (!courseData?.sections) return 0;
 //     const allLessons = courseData.sections.flatMap((s) => s.lessons || []);
 //     const completed = allLessons.filter((l) => l.completed).length;
-//     return allLessons.length > 0
-//       ? Math.round((completed / allLessons.length) * 100)
-//       : 0;
+//     return allLessons.length ? Math.round((completed / allLessons.length) * 100) : 0;
 //   };
 
-//   // ✅ 4. Handle quiz answers (if any)
-//   const handleQuizAnswer = (questionId, optionIndex) => {
-//     setQuizAnswers((prev) => ({
-//       ...prev,
-//       [questionId]: optionIndex,
-//     }));
-//   };
+//   /** ✅ Handle Back Navigation */
+//   const handleBack = () => navigate("/");
 
-//   const fetchLessonContent = async (lesson, topic) => {
-//     try {
-//       // ✅ Call new backend endpoint for detailed content
-//       const response = await fetch(
-//         "http://localhost:5000/api/generate-lesson-content",
-//         {
-//           method: "POST",
-//           headers: { "Content-Type": "application/json" },
-//           body: JSON.stringify({ topic, lessonTitle: lesson.title }),
-//         }
-//       );
+//   /** ✅ Loading & Error States */
+//   if (loadingCourse) return <div className="text-white p-10">Loading course...</div>;
+//   if (error) return <div className="text-red-400 p-10">Error: {error}</div>;
+//   if (!courseData) return <div className="text-white p-10">No course data found</div>;
 
-//       if (!response.ok) throw new Error("Failed to fetch lesson content");
-
-//       const data = await response.json();
-
-//       // ✅ Update lesson with generated content dynamically
-//       setActiveLesson({
-//         ...lesson,
-//         content: data.content,
-//       });
-//     } catch (error) {
-//       console.error("❌ Error loading lesson content:", error);
-//     }
-//   };
-
-//   // ✅ 6. Handle missing course case
-//   if (!courseData || !courseData.title) {
-//     return (
-//       <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-purple-950 via-purple-900 to-indigo-950">
-//         <div className="text-white text-center text-2xl font-bold mb-4">
-//           No course data found…
-//         </div>
-//         <button
-//           className="bg-blue-500 px-6 py-3 rounded-lg text-white font-semibold"
-//           onClick={() => navigate("/")}
-//         >
-//           Generate a Course
-//         </button>
-//       </div>
-//     );
-//   }
-
-//   // 3. (Below this, your regular component rendering as before) ...
-//   //    The rest of your code that uses courseData.title, courseData.sections, etc.
+//   const allLessons = getAllLessons();
+//   const currentIndex = getCurrentLessonIndex();
+//   const canGoNext = currentIndex < allLessons.length - 1;
+//   const canGoPrev = currentIndex > 0;
 
 //   return (
-//     <div className="min-h-screen bg-gradient-to-br from-purple-950 via-purple-900 to-indigo-950">
-//       {/* Header */}
-//       <div className="bg-black/40 backdrop-blur-md border-b border-white/10">
-//         <div className="max-w-7xl mx-auto px-4 py-6">
-//           <div className="flex items-center justify-between">
-//             <div className="flex items-center space-x-3">
-//               <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-//                 <BookOpen className="w-6 h-6 text-white" />
+//     <div className="min-h-screen bg-gradient-to-br from-purple-950 via-purple-900 to-indigo-950 font-inter">
+//       {/* ✅ Header */}
+//       <div className="bg-black/40 backdrop-blur-md border-b border-white/10 flex justify-between px-4 py-6">
+//         <div className="flex items-center space-x-3">
+//           <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+//             <BookOpen className="w-6 h-6 text-white" />
+//           </div>
+//           <span className="text-xl font-bold text-white">CourseAI</span>
+//         </div>
+//         <button
+//           onClick={handleBack}
+//           className="bg-red-500 px-4 py-2 rounded-lg text-white font-semibold hover:bg-red-600"
+//         >
+//           Back
+//         </button>
+//       </div>
+
+//       {/* ✅ Course Content */}
+//       <div className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+//         {/* ✅ Left Column */}
+//         <div className="lg:col-span-2 space-y-8">
+//           {/* ✅ Course Overview */}
+//           <div className="bg-black/30 rounded-2xl p-8 border border-white/10">
+//             <h1 className="text-4xl font-bold text-white mb-4">{courseData.title}</h1>
+//             <p className="text-white/80 mb-6">{courseData.description}</p>
+//             <div className="flex items-center space-x-6 text-white/70">
+//               <div className="flex items-center space-x-2">
+//                 <Star className="w-5 h-5 text-yellow-400" />
+//                 <span>4.8</span>
 //               </div>
-//               <span className="text-xl font-bold text-white">CourseAI</span>
-//             </div>
-//             <div className="flex items-center space-x-4">
-//               <div className="text-white/80">
-//                 Progress: {calculateProgress()}%
+//               <div className="flex items-center space-x-2">
+//                 <Users className="w-5 h-5" />
+//                 <span>1200 students</span>
 //               </div>
-//               <div className="w-32 bg-white/20 rounded-full h-2">
-//                 <div
-//                   className="bg-gradient-to-r from-green-400 to-green-500 h-2 rounded-full transition-all duration-500"
-//                   style={{ width: `${calculateProgress()}%` }}
-//                 ></div>
+//               <div className="flex items-center space-x-2">
+//                 <Clock className="w-5 h-5" />
+//                 <span>8h 30m</span>
 //               </div>
 //             </div>
 //           </div>
-//         </div>
-//       </div>
 
-//       {/* Course Content */}
-//       <div className="max-w-7xl mx-auto px-4 py-8">
-//         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-//           {/* Left: Main */}
-//           <div className="lg:col-span-2 space-y-8">
-//             {/* Title */}
-//             <div className="bg-black/30 backdrop-blur-md rounded-2xl p-8 border border-white/10">
-//               <div className="flex items-start justify-between mb-6">
-//                 <div className="flex-1">
-//                   <h1 className="text-4xl font-bold text-white mb-4">
-//                     {courseData.title}
-//                   </h1>
-//                   <p className="text-white/80 text-lg mb-6">
-//                     {courseData.overview}
-//                   </p>
+//           {/* ✅ Lessons */}
+//           <div className="bg-black/30 rounded-2xl p-8 border border-white/10">
+//             <h2 className="text-2xl font-bold text-white mb-6">Course Content</h2>
 
-//                   <div className="flex items-center space-x-6 text-white/70">
-//                     <div className="flex items-center space-x-2">
-//                       <Star className="w-5 h-5 text-yellow-400 fill-current" />
-//                       <span>{courseData.rating}</span>
-//                     </div>
-//                     <div className="flex items-center space-x-2">
-//                       <Users className="w-5 h-5" />
-//                       <span>
-//                         {courseData.students &&
-//                         courseData.students.toLocaleString
-//                           ? courseData.students.toLocaleString()
-//                           : courseData.students}{" "}
-//                         students
-//                       </span>
-//                     </div>
-//                     <div className="flex items-center space-x-2">
-//                       <Clock className="w-5 h-5" />
-//                       <span>{courseData.duration}</span>
-//                     </div>
-//                   </div>
-//                 </div>
-//                 <button className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-blue-600 hover:to-purple-700 transition-all duration-300 flex items-center space-x-2">
-//                   <Play className="w-5 h-5" />
-//                   <span>Start Course</span>
-//                 </button>
-//               </div>
-//             </div>
+//             {courseData.sections?.map((section, sIndex) => {
+//               const sectionId = section.id || `section-${sIndex}`;
 
-//             {/* Lessons */}
-//             <div className="bg-black/30 backdrop-blur-md rounded-2xl p-8 border border-white/10">
-//               <h2 className="text-2xl font-bold text-white mb-6">
-//                 Course Content
-//               </h2>
-
-//               <div className="space-y-4">
-//                 {Array.isArray(courseData.sections) &&
-//                 courseData.sections.length > 0 ? (
-//                   courseData.sections.map((section) => (
-//                     <div
-//                       key={section.id}
-//                       className="bg-black/20 rounded-xl border border-white/10"
-//                     >
-//                       <button
-//                         onClick={() => toggleSection(section.id)}
-//                         className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-black/20 transition-colors duration-200"
-//                       >
-//                         <div className="flex items-center space-x-3">
-//                           <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center text-white font-semibold">
-//                             {section.id}
-//                           </div>
-//                           <div>
-//                             <h3 className="text-lg font-semibold text-white">
-//                               {section.title}
-//                             </h3>
-//                             <p className="text-white/60 text-sm">
-//                               {section.lessons.length} lessons
-//                             </p>
-//                           </div>
-//                         </div>
-//                         {expandedSections[section.id] ? (
-//                           <ChevronDown className="w-5 h-5 text-white/60" />
-//                         ) : (
-//                           <ChevronRight className="w-5 h-5 text-white/60" />
-//                         )}
-//                       </button>
-
-//                       {expandedSections[section.id] && (
-//                         <div className="px-6 pb-4 space-y-2">
-//                           {Array.isArray(section.lessons) &&
-//                             section.lessons.map((lesson) => (
-//                               <div
-//                                 key={lesson.id}
-//                                 className="flex items-center justify-between p-4 bg-black/20 rounded-lg hover:bg-black/30 transition-colors duration-200 cursor-pointer"
-//                                 onClick={() => fetchLessonContent(lesson, courseData.title)}
-//                               >
-//                                 <div className="flex items-center space-x-3">
-//                                   {lesson.completed ? (
-//                                     <CheckCircle className="w-5 h-5 text-green-400" />
-//                                   ) : (
-//                                     <Circle className="w-5 h-5 text-white/40" />
-//                                   )}
-//                                   <div>
-//                                     <h4 className="text-white font-medium">
-//                                       {lesson.title}
-//                                     </h4>
-//                                     <p className="text-white/60 text-sm">
-//                                       {lesson.duration}
-//                                     </p>
-//                                   </div>
-//                                 </div>
-//                                 <FileText className="w-4 h-4 text-white/60" />
-//                               </div>
-//                             ))}
-//                         </div>
-//                       )}
-//                     </div>
-//                   ))
-//                 ) : (
-//                   <div className="text-white/60">No course sections found.</div>
-//                 )}
-//               </div>
-//               {activeLesson && (
-//                 <div className="mt-6 p-4 bg-gray-100 rounded-lg shadow">
-//                   <h3 className="text-xl font-semibold mb-2">
-//                     {activeLesson.title}
-//                   </h3>
-//                   <p className="text-gray-800 whitespace-pre-line">
-//                     {activeLesson.content}
-//                   </p>
-//                 </div>
-//               )}
-//             </div>
-
-//             {/* Quiz */}
-//             <div className="bg-black/30 backdrop-blur-md rounded-2xl p-8 border border-white/10">
-//               <div className="flex items-center justify-between mb-6">
-//                 <h2 className="text-2xl font-bold text-white">Course Quiz</h2>
-//                 <button
-//                   onClick={() => setShowQuiz(!showQuiz)}
-//                   className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-2 rounded-lg font-semibold hover:from-green-600 hover:to-emerald-700 transition-all duration-300"
-//                 >
-//                   {showQuiz ? "Hide Quiz" : "Take Quiz"}
-//                 </button>
-//               </div>
-
-//               {showQuiz && Array.isArray(courseData.quiz) && (
-//                 <div className="space-y-6">
-//                   {courseData.quiz.map((question, index) => (
-//                     <div
-//                       key={question.id || index}
-//                       className="bg-black/20 rounded-xl p-6 border border-white/10"
-//                     >
-//                       <h3 className="text-lg font-semibold text-white mb-4">
-//                         {index + 1}. {question.question}
-//                       </h3>
-//                       <div className="space-y-3">
-//                         {(question.options || []).map((option, optionIndex) => (
-//                           <button
-//                             key={optionIndex}
-//                             onClick={() =>
-//                               handleQuizAnswer(question.id, optionIndex)
-//                             }
-//                             className={`w-full text-left p-4 rounded-lg border transition-all duration-200 ${
-//                               quizAnswers[question.id] === optionIndex
-//                                 ? "bg-blue-500/20 border-blue-400 text-white"
-//                                 : "bg-black/20 border-white/10 text-white/80 hover:bg-black/30"
-//                             }`}
-//                           >
-//                             {String.fromCharCode(65 + optionIndex)}. {option}
-//                           </button>
-//                         ))}
+//               return (
+//                 <div key={sectionId} className="bg-black/20 rounded-xl border border-white/10 mb-4">
+//                   {/* Section Header */}
+//                   <button
+//                     onClick={() => toggleSection(sectionId)}
+//                     className="w-full px-6 py-4 flex justify-between items-center hover:bg-black/20"
+//                   >
+//                     <div className="flex items-center space-x-3">
+//                       <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center text-white font-semibold">
+//                         {sIndex + 1}
+//                       </div>
+//                       <div>
+//                         <h3 className="text-lg font-semibold text-white">{section.title}</h3>
+//                         <p className="text-white/60 text-sm">{section.lessons?.length} lessons</p>
 //                       </div>
 //                     </div>
-//                   ))}
+//                     {expandedSections[sectionId] ? (
+//                       <ChevronDown className="text-white/60" />
+//                     ) : (
+//                       <ChevronRight className="text-white/60" />
+//                     )}
+//                   </button>
 
-//                   <div className="flex justify-center">
-//                     <button className="bg-gradient-to-r from-purple-500 to-pink-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-purple-600 hover:to-pink-700 transition-all duration-300 flex items-center space-x-2">
-//                       <Award className="w-5 h-5" />
-//                       <span>Submit Quiz</span>
-//                     </button>
-//                   </div>
+//                   {/* Lessons */}
+//                   {expandedSections[sectionId] && (
+//                     <div className="px-6 pb-4 space-y-2">
+//                       {section.lessons?.map((lesson, lIndex) => {
+//                         const lessonKey = `${sectionId}-${lesson.id || lIndex}`;
+
+//                         return (
+//                           <div key={lessonKey} className="space-y-2">
+//                             {/* Lesson Item */}
+//                             <div
+//                               className="flex justify-between items-center p-4 bg-black/20 rounded-lg hover:bg-black/30 cursor-pointer transition-colors"
+//                               onClick={(e) => handleLessonClick(e, lesson, courseData.title, sectionId)}
+//                             >
+//                               <div className="flex items-center space-x-3">
+//                                 {lesson.completed ? <CheckCircle className="text-green-400" /> : <Circle className="text-white/40" />}
+//                                 <div>
+//                                   <h4 className="text-white">{lesson.title}</h4>
+//                                   <p className="text-white/60 text-sm">{lesson.duration || "N/A"}</p>
+//                                 </div>
+//                               </div>
+//                               <div className="flex items-center space-x-2">
+//                                 <FileText className="text-white/60" />
+//                                 <ChevronRight className="text-white/60" />
+//                               </div>
+//                             </div>
+//                           </div>
+//                         );
+//                       })}
+//                     </div>
+//                   )}
 //                 </div>
-//               )}
-//               {showQuiz &&
-//                 (!courseData.quiz || courseData.quiz.length === 0) && (
-//                   <div className="text-white/80">No quiz for this course.</div>
-//                 )}
-//             </div>
+//               );
+//             })}
 //           </div>
+//         </div>
 
-//           {/* Right: Stats */}
-//           <div className="space-y-6">
-//             <div className="bg-black/30 backdrop-blur-md rounded-2xl p-6 border border-white/10">
-//               <h3 className="text-xl font-bold text-white mb-4">
-//                 Course Stats
-//               </h3>
-//               <div className="space-y-4">
-//                 <div className="flex justify-between">
-//                   <span className="text-white/70">Total Lessons</span>
-//                   <span className="text-white font-semibold">
-//                     {Array.isArray(courseData.sections)
-//                       ? courseData.sections.reduce(
-//                           (acc, section) => acc + section.lessons.length,
-//                           0
-//                         )
-//                       : 0}
-//                   </span>
-//                 </div>
-//                 <div className="flex justify-between">
-//                   <span className="text-white/70">Completed</span>
-//                   <span className="text-white font-semibold">
-//                     {Array.isArray(courseData.sections)
-//                       ? courseData.sections.reduce(
-//                           (acc, section) =>
-//                             acc +
-//                             section.lessons.filter((lesson) => lesson.completed)
-//                               .length,
-//                           0
-//                         )
-//                       : 0}
-//                   </span>
-//                 </div>
-//                 <div className="flex justify-between">
-//                   <span className="text-white/70">Quiz Questions</span>
-//                   <span className="text-white font-semibold">
-//                     {courseData.quiz ? courseData.quiz.length : 0}
-//                   </span>
-//                 </div>
+//         {/* ✅ Right Column (Stats) */}
+//         <div className="space-y-6">
+//           <div className="bg-black/30 p-6 rounded-2xl border border-white/10">
+//             <h3 className="text-xl text-white mb-4">Course Stats</h3>
+//             <div className="space-y-2 text-white/70">
+//               <div className="flex justify-between">
+//                 <span>Total Lessons</span>
+//                 <span>{courseData.sections.reduce((a, s) => a + (s.lessons?.length || 0), 0)}</span>
+//               </div>
+//               <div className="flex justify-between">
+//                 <span>Completed</span>
+//                 <span>{courseData.sections.reduce((a, s) => a + (s.lessons?.filter((l) => l.completed).length || 0), 0)}</span>
+//               </div>
+//               <div className="flex justify-between">
+//                 <span>Progress</span>
+//                 <span>{calculateProgress()}%</span>
 //               </div>
 //             </div>
 //           </div>
 //         </div>
 //       </div>
+
+//       {/* ✅ Lesson Modal */}
+//       {modalOpen && currentLessonData && (
+//         <div className="fixed inset-0  backdrop-blur-md flex items-center justify-center z-50 p-4">
+//           <div className="w-full max-w-2xl h-[96vh] flex flex-col">
+//             {/* Modal Header - Outside the content area */}
+//             <div className="flex items-center justify-between mb-6 bg-black/20 backdrop-blur-sm rounded-lg p-4 border border-white/10">
+//               <div className="flex-1">
+//                 <h2 className="text-2xl font-bold text-white mb-1">{currentLessonData.title}</h2>
+//                 <p className="text-white/70 text-sm">
+//                   {allLessons.find(l => l.lessonKey === currentLessonData.lessonKey)?.sectionTitle}
+//                 </p>
+//               </div>
+//               <button
+//                 onClick={closeModal}
+//                 className="text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-all duration-200 ml-4"
+//               >
+//                 <X className="w-6 h-6" />
+//               </button>
+//             </div>
+
+//             {/* Modal Content - A4-like white paper */}
+//             <div className="flex-1 bg-white rounded-lg shadow-2xl overflow-hidden border border-gray-200">
+//               <div className="h-full overflow-auto p-12">
+//                 {loadingLessons[currentLessonData.lessonKey] ? (
+//                   <div className="flex items-center justify-center h-full">
+//                     <div className="flex items-center space-x-3 text-gray-600">
+//                       <Loader className="animate-spin w-6 h-6" />
+//                       <span className="text-lg">Loading lesson content...</span>
+//                     </div>
+//                   </div>
+//                 ) : lessonContents[currentLessonData.lessonKey] ? (
+//                   <div className="prose prose-gray prose-lg max-w-none">
+//                     <ReactMarkdown 
+//                       components={{
+//                         h1: ({children}) => <h1 className="text-3xl font-bold text-gray-900 mb-6 pb-3 border-b border-gray-200">{children}</h1>,
+//                         h2: ({children}) => <h2 className="text-2xl font-semibold text-gray-800 mt-8 mb-4">{children}</h2>,
+//                         h3: ({children}) => <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3">{children}</h3>,
+//                         p: ({children}) => <p className="text-gray-700 leading-relaxed mb-4">{children}</p>,
+//                         ul: ({children}) => <ul className="text-gray-700 mb-4 pl-6">{children}</ul>,
+//                         ol: ({children}) => <ol className="text-gray-700 mb-4 pl-6">{children}</ol>,
+//                         li: ({children}) => <li className="mb-2">{children}</li>,
+//                         code: ({inline, children}) => 
+//                           inline ? 
+//                             <code className="bg-gray-100 text-purple-700 px-2 py-1 rounded text-sm font-mono">{children}</code> :
+//                             <code className="block bg-gray-900 text-green-400 p-4 rounded-lg text-sm font-mono overflow-x-auto mb-4">{children}</code>,
+//                         pre: ({children}) => <pre className="bg-gray-900 rounded-lg p-4 mb-4 overflow-x-auto">{children}</pre>,
+//                         blockquote: ({children}) => <blockquote className="border-l-4 border-purple-500 pl-4 italic text-gray-600 my-4">{children}</blockquote>,
+//                         strong: ({children}) => <strong className="font-semibold text-gray-900">{children}</strong>
+//                       }}
+//                     >
+//                       {lessonContents[currentLessonData.lessonKey]}
+//                     </ReactMarkdown>
+//                   </div>
+//                 ) : (
+//                   <div className="flex items-center justify-center h-full text-gray-500">
+//                     <p className="text-lg">No content available for this lesson.</p>
+//                   </div>
+//                 )}
+//               </div>
+//             </div>
+
+//             {/* Modal Footer - Outside the content area */}
+//             <div className="mt-6 flex items-center justify-between bg-black/20 backdrop-blur-sm rounded-lg p-4 border border-white/10">
+//               <button
+//                 onClick={() => navigateLesson('prev')}
+//                 disabled={!canGoPrev}
+//                 className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-all duration-200 font-medium ${
+//                   canGoPrev 
+//                     ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25' 
+//                     : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+//                 }`}
+//               >
+//                 <ArrowLeft className="w-4 h-4" />
+//                 <span>Previous</span>
+//               </button>
+
+//               <div className="text-white/80 text-sm font-medium bg-white/10 px-4 py-2 rounded-lg">
+//                 Lesson {currentIndex + 1} of {allLessons.length}
+//               </div>
+
+//               <button
+//                 onClick={() => navigateLesson('next')}
+//                 disabled={!canGoNext}
+//                 className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-all duration-200 font-medium ${
+//                   canGoNext 
+//                     ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25' 
+//                     : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+//                 }`}
+//               >
+//                 <span>Next</span>
+//                 <ArrowRight className="w-4 h-4" />
+//               </button>
+//             </div>
+//           </div>
+//         </div>
+//       )}
 //     </div>
 //   );
 // };
