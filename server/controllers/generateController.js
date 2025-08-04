@@ -5,16 +5,38 @@ require("dotenv").config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
 
-// ✅ Helper: Safe JSON Parser
-function safeParseGeminiJSON(rawText) {
+/** ✅ Enhanced Safe JSON Parser with Retry + Fallback */
+async function safeParseGeminiJSON(rawText, retryFn) {
   try {
-    const cleaned = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+    let cleaned = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
-    const jsonString = cleaned.slice(start, end + 1);
+    if (start === -1 || end === -1) throw new Error("Invalid JSON boundaries");
+
+    let jsonString = cleaned.slice(start, end + 1);
+
+    // ✅ Sanitize control characters
+    jsonString = jsonString.replace(/[\u0000-\u001F\u007F]/g, "");
+
+    // ✅ Try parsing
     return JSON.parse(jsonString);
+
   } catch (err) {
     console.error("❌ JSON parse error:", err.message);
+
+    // ✅ Retry once if retryFn is provided
+    if (retryFn) {
+      try {
+        console.log("🔄 Retrying Gemini API call...");
+        const retryResponse = await retryFn();
+        return await safeParseGeminiJSON(retryResponse, null);
+      } catch (retryErr) {
+        console.error("❌ Retry also failed:", retryErr.message);
+      }
+    }
+
+    // ✅ Fallback safe object
     return { title: "Parsing Error", description: rawText, sections: [] };
   }
 }
@@ -34,8 +56,13 @@ Rules:
 Return only JSON.
     `;
 
-    const result = await model.generateContent(prompt);
-    const parsed = safeParseGeminiJSON(result.response.text());
+    const fetchGemini = async () => {
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    };
+
+    const rawText = await fetchGemini();
+    const parsed = await safeParseGeminiJSON(rawText, fetchGemini); // ✅ retry enabled
 
     // ✅ Save to MongoDB
     const newCourse = new Course({
@@ -53,7 +80,7 @@ Return only JSON.
   }
 };
 
-/** ✅ STEP 2: Generate Lesson Content (Optional save) */
+/** ✅ STEP 2: Generate Lesson Content (Retry + Fallback) */
 exports.generateLessonContent = async (req, res) => {
   try {
     const { topic, lessonTitle } = req.body;
@@ -66,8 +93,13 @@ Write a detailed lesson on "${lessonTitle}" for the course "${topic}".
 Return only valid JSON: { "title": "${lessonTitle}", "content": "..." }
     `;
 
-    const result = await model.generateContent(prompt);
-    const parsed = safeParseGeminiJSON(result.response.text());
+    const fetchGemini = async () => {
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    };
+
+    const rawText = await fetchGemini();
+    const parsed = await safeParseGeminiJSON(rawText, fetchGemini); // ✅ retry enabled
 
     res.status(200).json({
       title: parsed.title || lessonTitle,
