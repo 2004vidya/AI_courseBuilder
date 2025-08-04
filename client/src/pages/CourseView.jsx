@@ -357,37 +357,8 @@ const CourseView = () => {
                 </div>
               </div>
 
-              {/* Navigation Controls */}
-              <div className="p-6 space-y-3">
-                <button
-                  onClick={() => navigateLesson('prev')}
-                  disabled={!canGoPrev}
-                  className={`w-full flex items-center justify-center space-x-3 py-3 px-4 rounded-xl transition-all duration-200 font-medium ${
-                    canGoPrev 
-                      ? 'bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white shadow-lg hover:shadow-xl border border-slate-600/50' 
-                      : 'bg-slate-800/50 text-slate-500 cursor-not-allowed border border-slate-700/30'
-                  }`}
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Previous Lesson</span>
-                </button>
-
-                <button
-                  onClick={() => navigateLesson('next')}
-                  disabled={!canGoNext}
-                  className={`w-full flex items-center justify-center space-x-3 py-3 px-4 rounded-xl transition-all duration-200 font-medium ${
-                    canGoNext 
-                      ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg hover:shadow-xl border border-purple-500/50' 
-                      : 'bg-slate-800/50 text-slate-500 cursor-not-allowed border border-slate-700/30'
-                  }`}
-                >
-                  <span>Next Lesson</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Course Progress */}
-              <div className="flex-1 p-6">
+              {/* Course Progress - Moved up and made scrollable */}
+              <div className="flex-1 p-6 overflow-y-auto">
                 <h4 className="text-white font-medium mb-4 text-sm">Course Progress</h4>
                 <div className="space-y-3">
                   {courseData.sections?.map((section, sIndex) => {
