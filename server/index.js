@@ -7,6 +7,7 @@ const mongoose = require("mongoose");
 const authRoutes = require("./routes/authRoutes");
 const generateRoutes = require("./routes/generateRoutes");
 const courseRoutes = require("./routes/courseRoutes");
+const youtubeRoutes = require("./routes/youtubeRoutes");
 
 app.use(cors({
   origin: ["http://localhost:5173", "http://localhost:5174"],
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use("/api", generateRoutes);
 app.use('/api/courses', courseRoutes);
+app.use("/api/youtube", youtubeRoutes);
 
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,

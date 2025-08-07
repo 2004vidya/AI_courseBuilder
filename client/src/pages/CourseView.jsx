@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
@@ -20,7 +21,9 @@ import {
   ArrowLeft,
   Monitor,
   PanelLeftClose,
+  Youtube,
 } from "lucide-react";
+import YouTubeComponent from "../components/YoutubeComponent"; // Import the YouTube component
 
 const CourseView = () => {
   /** ✅ Get course ID from URL */
@@ -40,6 +43,9 @@ const CourseView = () => {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [currentLessonData, setCurrentLessonData] = useState(null);
+
+  // YouTube integration state
+  const [activeModalTab, setActiveModalTab] = useState('content'); // 'content' or 'youtube'
 
   /** ✅ Fetch Course from MongoDB on Mount */
   useEffect(() => {
@@ -122,6 +128,7 @@ const CourseView = () => {
     };
     setCurrentLessonData(lessonData);
     setModalOpen(true);
+    setActiveModalTab('content'); // Reset to content tab when opening new lesson
 
     // Skip fetch if already loaded
     if (lessonContents[lessonKey]) return;
@@ -157,6 +164,7 @@ const CourseView = () => {
   const closeModal = () => {
     setModalOpen(false);
     setCurrentLessonData(null);
+    setActiveModalTab('content');
   };
 
   /** ✅ Handle lesson click */
@@ -268,7 +276,7 @@ const CourseView = () => {
                         return (
                           <div key={lessonKey} className="space-y-2">
                             {/* Lesson Item */}
-                            <div
+                                                          <div
                               className="flex justify-between items-center p-4 bg-black/20 rounded-lg hover:bg-black/30 cursor-pointer transition-colors"
                               onClick={(e) => handleLessonClick(e, lesson, courseData.title, sectionId)}
                             >
@@ -281,6 +289,7 @@ const CourseView = () => {
                               </div>
                               <div className="flex items-center space-x-2">
                                 <FileText className="text-white/60" />
+                                <Youtube className="text-red-400 w-5 h-5" />
                                 <ChevronRight className="text-white/60" />
                               </div>
                             </div>
@@ -317,11 +326,11 @@ const CourseView = () => {
         </div>
       </div>
 
-      {/* ✅ Enhanced Lesson Modal */}
+      {/* ✅ Enhanced Lesson Modal with YouTube Integration */}
       {modalOpen && currentLessonData && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50 p-4">
-          {/* Modal Container - Portrait orientation */}
-          <div className="w-full max-w-4xl h-[90vh] flex">
+          {/* Modal Container */}
+          <div className="w-full max-w-7xl h-[90vh] flex">
             {/* Left Side - Lesson Navigation Panel */}
             <div className="w-80 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border border-slate-700/50 rounded-l-2xl flex flex-col shadow-2xl">
               {/* Navigation Header */}
@@ -385,109 +394,150 @@ const CourseView = () => {
               </div>
             </div>
 
-            {/* Right Side - Lesson Content */}
+            {/* Right Side - Content Area with Tabs */}
             <div className="flex-1 bg-white rounded-r-2xl shadow-2xl overflow-hidden border border-gray-200/50 flex flex-col">
-              {/* Content Header */}
-              <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200/50 p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2 leading-tight">
-                      {currentLessonData.title}
-                    </h1>
-                    <div className="flex items-center space-x-4 text-sm text-gray-600">
-                      <div className="flex items-center space-x-1">
-                        <Clock className="w-4 h-4" />
-                        <span>{currentLessonData.duration || "N/A"}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <BookOpen className="w-4 h-4" />
-                        <span>{allLessons.find(l => l.lessonKey === currentLessonData.lessonKey)?.sectionTitle}</span>
+              {/* Content Header with Tabs */}
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200/50">
+                {/* Lesson Info */}
+                <div className="p-6 border-b border-gray-200/30">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h1 className="text-2xl font-bold text-gray-900 mb-2 leading-tight">
+                        {currentLessonData.title}
+                      </h1>
+                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <div className="flex items-center space-x-1">
+                          <Clock className="w-4 h-4" />
+                          <span>{currentLessonData.duration || "N/A"}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <BookOpen className="w-4 h-4" />
+                          <span>{allLessons.find(l => l.lessonKey === currentLessonData.lessonKey)?.sectionTitle}</span>
+                        </div>
                       </div>
                     </div>
+                    <div className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
+                      {currentIndex + 1}/{allLessons.length}
+                    </div>
                   </div>
-                  <div className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
-                    {currentIndex + 1}/{allLessons.length}
-                  </div>
+                </div>
+
+                {/* Tab Navigation */}
+                <div className="flex border-b border-gray-200/50">
+                  <button
+                    onClick={() => setActiveModalTab('content')}
+                    className={`flex-1 px-6 py-4 font-medium text-sm transition-all duration-200 flex items-center justify-center space-x-2 ${
+                      activeModalTab === 'content' 
+                        ? 'bg-white text-purple-600 border-b-2 border-purple-600 shadow-sm' 
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Lesson Content</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveModalTab('youtube')}
+                    className={`flex-1 px-6 py-4 font-medium text-sm transition-all duration-200 flex items-center justify-center space-x-2 ${
+                      activeModalTab === 'youtube' 
+                        ? 'bg-white text-red-600 border-b-2 border-red-600 shadow-sm' 
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
+                    }`}
+                  >
+                    <Youtube className="w-4 h-4" />
+                    <span>YouTube Videos</span>
+                  </button>
                 </div>
               </div>
 
               {/* Scrollable Content Area */}
               <div className="flex-1 overflow-auto">
-                <div className="p-8">
-                  {loadingLessons[currentLessonData.lessonKey] ? (
-                    <div className="flex flex-col items-center justify-center h-96 space-y-4">
-                      <div className="relative">
-                        <div className="w-16 h-16 border-4 border-purple-200 rounded-full"></div>
-                        <div className="absolute top-0 left-0 w-16 h-16 border-4 border-purple-600 rounded-full border-t-transparent animate-spin"></div>
+                {activeModalTab === 'content' && (
+                  <div className="p-8">
+                    {loadingLessons[currentLessonData.lessonKey] ? (
+                      <div className="flex flex-col items-center justify-center h-96 space-y-4">
+                        <div className="relative">
+                          <div className="w-16 h-16 border-4 border-purple-200 rounded-full"></div>
+                          <div className="absolute top-0 left-0 w-16 h-16 border-4 border-purple-600 rounded-full border-t-transparent animate-spin"></div>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-gray-700 font-medium">Loading lesson content...</p>
+                          <p className="text-gray-500 text-sm mt-1">Preparing your learning experience</p>
+                        </div>
                       </div>
-                      <div className="text-center">
-                        <p className="text-gray-700 font-medium">Loading lesson content...</p>
-                        <p className="text-gray-500 text-sm mt-1">Preparing your learning experience</p>
-                      </div>
-                    </div>
-                  ) : lessonContents[currentLessonData.lessonKey] ? (
-                    <div className="prose prose-gray prose-lg max-w-none">
-                      <ReactMarkdown 
-                        components={{
-                          h1: ({children}) => (
-                            <h1 className="text-3xl font-bold text-gray-900 mb-6 pb-4 border-b-2 border-gradient-to-r from-purple-500 to-blue-500" 
-                                style={{borderImage: 'linear-gradient(90deg, #8b5cf6, #3b82f6) 1'}}>
-                              {children}
-                            </h1>
-                          ),
-                          h2: ({children}) => (
-                            <h2 className="text-2xl font-bold text-gray-800 mt-8 mb-4 flex items-center">
-                              <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-blue-500 rounded-full mr-3"></div>
-                              {children}
-                            </h2>
-                          ),
-                          h3: ({children}) => (
-                            <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3 flex items-center">
-                              <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
-                              {children}
-                            </h3>
-                          ),
-                          p: ({children}) => <p className="text-gray-700 leading-relaxed mb-5 text-base">{children}</p>,
-                          ul: ({children}) => <ul className="text-gray-700 mb-5 pl-6 space-y-2">{children}</ul>,
-                          ol: ({children}) => <ol className="text-gray-700 mb-5 pl-6 space-y-2">{children}</ol>,
-                          li: ({children}) => <li className="relative pl-2">{children}</li>,
-                          code: ({inline, children}) => 
-                            inline ? 
-                              <code className="bg-purple-50 text-purple-700 px-2 py-1 rounded-md text-sm font-mono border border-purple-200">{children}</code> :
-                              <code className="block bg-gray-900 text-green-400 p-6 rounded-xl text-sm font-mono overflow-x-auto mb-6 border border-gray-700 shadow-inner">{children}</code>,
-                          pre: ({children}) => (
-                            <div className="relative">
-                              <pre className="bg-gray-900 rounded-xl p-6 mb-6 overflow-x-auto border border-gray-700 shadow-2xl">{children}</pre>
-                              <div className="absolute top-4 right-4 flex space-x-1">
-                                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    ) : lessonContents[currentLessonData.lessonKey] ? (
+                      <div className="prose prose-gray prose-lg max-w-none">
+                        <ReactMarkdown 
+                          components={{
+                            h1: ({children}) => (
+                              <h1 className="text-3xl font-bold text-gray-900 mb-6 pb-4 border-b-2 border-gradient-to-r from-purple-500 to-blue-500" 
+                                  style={{borderImage: 'linear-gradient(90deg, #8b5cf6, #3b82f6) 1'}}>
+                                {children}
+                              </h1>
+                            ),
+                            h2: ({children}) => (
+                              <h2 className="text-2xl font-bold text-gray-800 mt-8 mb-4 flex items-center">
+                                <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-blue-500 rounded-full mr-3"></div>
+                                {children}
+                              </h2>
+                            ),
+                            h3: ({children}) => (
+                              <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3 flex items-center">
+                                <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
+                                {children}
+                              </h3>
+                            ),
+                            p: ({children}) => <p className="text-gray-700 leading-relaxed mb-5 text-base">{children}</p>,
+                            ul: ({children}) => <ul className="text-gray-700 mb-5 pl-6 space-y-2">{children}</ul>,
+                            ol: ({children}) => <ol className="text-gray-700 mb-5 pl-6 space-y-2">{children}</ol>,
+                            li: ({children}) => <li className="relative pl-2">{children}</li>,
+                            code: ({inline, children}) => 
+                              inline ? 
+                                <code className="bg-purple-50 text-purple-700 px-2 py-1 rounded-md text-sm font-mono border border-purple-200">{children}</code> :
+                                <code className="block bg-gray-900 text-green-400 p-6 rounded-xl text-sm font-mono overflow-x-auto mb-6 border border-gray-700 shadow-inner">{children}</code>,
+                            pre: ({children}) => (
+                              <div className="relative">
+                                <pre className="bg-gray-900 rounded-xl p-6 mb-6 overflow-x-auto border border-gray-700 shadow-2xl">{children}</pre>
+                                <div className="absolute top-4 right-4 flex space-x-1">
+                                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                                  <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                </div>
                               </div>
-                            </div>
-                          ),
-                          blockquote: ({children}) => (
-                            <blockquote className="border-l-4 border-gradient-to-b from-purple-500 to-blue-500 bg-gradient-to-r from-purple-50 to-blue-50 pl-6 pr-4 py-4 italic text-gray-700 my-6 rounded-r-lg shadow-sm">
-                              {children}
-                            </blockquote>
-                          ),
-                          strong: ({children}) => <strong className="font-semibold text-gray-900 bg-yellow-100 px-1 rounded">{children}</strong>,
-                        }}
-                      >
-                        {lessonContents[currentLessonData.lessonKey]}
-                      </ReactMarkdown>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-96 space-y-4">
-                      <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
-                        <FileText className="w-10 h-10 text-gray-400" />
+                            ),
+                            blockquote: ({children}) => (
+                              <blockquote className="border-l-4 border-gradient-to-b from-purple-500 to-blue-500 bg-gradient-to-r from-purple-50 to-blue-50 pl-6 pr-4 py-4 italic text-gray-700 my-6 rounded-r-lg shadow-sm">
+                                {children}
+                              </blockquote>
+                            ),
+                            strong: ({children}) => <strong className="font-semibold text-gray-900 bg-yellow-100 px-1 rounded">{children}</strong>,
+                          }}
+                        >
+                          {lessonContents[currentLessonData.lessonKey]}
+                        </ReactMarkdown>
                       </div>
-                      <div className="text-center">
-                        <p className="text-gray-700 font-medium">No content available</p>
-                        <p className="text-gray-500 text-sm">This lesson content couldn't be loaded.</p>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-96 space-y-4">
+                        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+                          <FileText className="w-10 h-10 text-gray-400" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-gray-700 font-medium">No content available</p>
+                          <p className="text-gray-500 text-sm">This lesson content couldn't be loaded.</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
+
+                {activeModalTab === 'youtube' && (
+                  <div className="p-8">
+                    <YouTubeComponent 
+                      lessonTitle={currentLessonData.title}
+                      topic={currentLessonData.topic}
+                      isVisible={activeModalTab === 'youtube'}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Content Footer - Action Bar */}
@@ -562,6 +612,8 @@ export default CourseView;
 //   ChevronLeft,
 //   ArrowRight,
 //   ArrowLeft,
+//   Monitor,
+//   PanelLeftClose,
 // } from "lucide-react";
 
 // const CourseView = () => {
@@ -859,98 +911,222 @@ export default CourseView;
 //         </div>
 //       </div>
 
-//       {/* ✅ Lesson Modal */}
+//       {/* ✅ Enhanced Lesson Modal */}
 //       {modalOpen && currentLessonData && (
-//         <div className="fixed inset-0  backdrop-blur-md flex items-center justify-center z-50 p-4">
-//           <div className="w-full max-w-2xl h-[96vh] flex flex-col">
-//             {/* Modal Header - Outside the content area */}
-//             <div className="flex items-center justify-between mb-6 bg-black/20 backdrop-blur-sm rounded-lg p-4 border border-white/10">
-//               <div className="flex-1">
-//                 <h2 className="text-2xl font-bold text-white mb-1">{currentLessonData.title}</h2>
-//                 <p className="text-white/70 text-sm">
-//                   {allLessons.find(l => l.lessonKey === currentLessonData.lessonKey)?.sectionTitle}
-//                 </p>
-//               </div>
-//               <button
-//                 onClick={closeModal}
-//                 className="text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-all duration-200 ml-4"
-//               >
-//                 <X className="w-6 h-6" />
-//               </button>
-//             </div>
-
-//             {/* Modal Content - A4-like white paper */}
-//             <div className="flex-1 bg-white rounded-lg shadow-2xl overflow-hidden border border-gray-200">
-//               <div className="h-full overflow-auto p-12">
-//                 {loadingLessons[currentLessonData.lessonKey] ? (
-//                   <div className="flex items-center justify-center h-full">
-//                     <div className="flex items-center space-x-3 text-gray-600">
-//                       <Loader className="animate-spin w-6 h-6" />
-//                       <span className="text-lg">Loading lesson content...</span>
+//         <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50 p-4">
+//           {/* Modal Container - Portrait orientation */}
+//           <div className="w-full max-w-4xl h-[90vh] flex">
+//             {/* Left Side - Lesson Navigation Panel */}
+//             <div className="w-80 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 border border-slate-700/50 rounded-l-2xl flex flex-col shadow-2xl">
+//               {/* Navigation Header */}
+//               <div className="p-6 border-b border-slate-700/50">
+//                 <div className="flex items-center justify-between mb-4">
+//                   <div className="flex items-center space-x-2">
+//                     <Monitor className="w-5 h-5 text-purple-400" />
+//                     <span className="text-white font-semibold">Course Navigation</span>
+//                   </div>
+//                   <button
+//                     onClick={closeModal}
+//                     className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-700/50 transition-all duration-200"
+//                   >
+//                     <X className="w-5 h-5" />
+//                   </button>
+//                 </div>
+                
+//                 {/* Current Lesson Info */}
+//                 <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-600/30">
+//                   <h3 className="text-white font-medium text-sm mb-1">{currentLessonData.title}</h3>
+//                   <p className="text-slate-400 text-xs">{allLessons.find(l => l.lessonKey === currentLessonData.lessonKey)?.sectionTitle}</p>
+//                   <div className="mt-3 flex items-center justify-between">
+//                     <span className="text-purple-400 text-xs font-medium">
+//                       Lesson {currentIndex + 1} of {allLessons.length}
+//                     </span>
+//                     <div className="w-16 h-1 bg-slate-700 rounded-full overflow-hidden">
+//                       <div 
+//                         className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300"
+//                         style={{ width: `${((currentIndex + 1) / allLessons.length) * 100}%` }}
+//                       ></div>
 //                     </div>
 //                   </div>
-//                 ) : lessonContents[currentLessonData.lessonKey] ? (
-//                   <div className="prose prose-gray prose-lg max-w-none">
-//                     <ReactMarkdown 
-//                       components={{
-//                         h1: ({children}) => <h1 className="text-3xl font-bold text-gray-900 mb-6 pb-3 border-b border-gray-200">{children}</h1>,
-//                         h2: ({children}) => <h2 className="text-2xl font-semibold text-gray-800 mt-8 mb-4">{children}</h2>,
-//                         h3: ({children}) => <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3">{children}</h3>,
-//                         p: ({children}) => <p className="text-gray-700 leading-relaxed mb-4">{children}</p>,
-//                         ul: ({children}) => <ul className="text-gray-700 mb-4 pl-6">{children}</ul>,
-//                         ol: ({children}) => <ol className="text-gray-700 mb-4 pl-6">{children}</ol>,
-//                         li: ({children}) => <li className="mb-2">{children}</li>,
-//                         code: ({inline, children}) => 
-//                           inline ? 
-//                             <code className="bg-gray-100 text-purple-700 px-2 py-1 rounded text-sm font-mono">{children}</code> :
-//                             <code className="block bg-gray-900 text-green-400 p-4 rounded-lg text-sm font-mono overflow-x-auto mb-4">{children}</code>,
-//                         pre: ({children}) => <pre className="bg-gray-900 rounded-lg p-4 mb-4 overflow-x-auto">{children}</pre>,
-//                         blockquote: ({children}) => <blockquote className="border-l-4 border-purple-500 pl-4 italic text-gray-600 my-4">{children}</blockquote>,
-//                         strong: ({children}) => <strong className="font-semibold text-gray-900">{children}</strong>
-//                       }}
-//                     >
-//                       {lessonContents[currentLessonData.lessonKey]}
-//                     </ReactMarkdown>
-//                   </div>
-//                 ) : (
-//                   <div className="flex items-center justify-center h-full text-gray-500">
-//                     <p className="text-lg">No content available for this lesson.</p>
-//                   </div>
-//                 )}
+//                 </div>
+//               </div>
+
+//               {/* Course Progress - Moved up and made scrollable */}
+//               <div className="flex-1 p-6 overflow-y-auto">
+//                 <h4 className="text-white font-medium mb-4 text-sm">Course Progress</h4>
+//                 <div className="space-y-3">
+//                   {courseData.sections?.map((section, sIndex) => {
+//                     const completedLessons = section.lessons?.filter(l => l.completed).length || 0;
+//                     const totalLessons = section.lessons?.length || 0;
+//                     const sectionProgress = totalLessons ? (completedLessons / totalLessons) * 100 : 0;
+                    
+//                     return (
+//                       <div key={section.id} className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
+//                         <div className="flex justify-between items-center mb-2">
+//                           <span className="text-slate-300 text-xs font-medium">{section.title}</span>
+//                           <span className="text-slate-400 text-xs">{completedLessons}/{totalLessons}</span>
+//                         </div>
+//                         <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+//                           <div 
+//                             className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-300"
+//                             style={{ width: `${sectionProgress}%` }}
+//                           ></div>
+//                         </div>
+//                       </div>
+//                     );
+//                   })}
+//                 </div>
 //               </div>
 //             </div>
 
-//             {/* Modal Footer - Outside the content area */}
-//             <div className="mt-6 flex items-center justify-between bg-black/20 backdrop-blur-sm rounded-lg p-4 border border-white/10">
-//               <button
-//                 onClick={() => navigateLesson('prev')}
-//                 disabled={!canGoPrev}
-//                 className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-all duration-200 font-medium ${
-//                   canGoPrev 
-//                     ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25' 
-//                     : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-//                 }`}
-//               >
-//                 <ArrowLeft className="w-4 h-4" />
-//                 <span>Previous</span>
-//               </button>
-
-//               <div className="text-white/80 text-sm font-medium bg-white/10 px-4 py-2 rounded-lg">
-//                 Lesson {currentIndex + 1} of {allLessons.length}
+//             {/* Right Side - Lesson Content */}
+//             <div className="flex-1 bg-white rounded-r-2xl shadow-2xl overflow-hidden border border-gray-200/50 flex flex-col">
+//               {/* Content Header */}
+//               <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200/50 p-6">
+//                 <div className="flex items-start justify-between">
+//                   <div className="flex-1">
+//                     <h1 className="text-2xl font-bold text-gray-900 mb-2 leading-tight">
+//                       {currentLessonData.title}
+//                     </h1>
+//                     <div className="flex items-center space-x-4 text-sm text-gray-600">
+//                       <div className="flex items-center space-x-1">
+//                         <Clock className="w-4 h-4" />
+//                         <span>{currentLessonData.duration || "N/A"}</span>
+//                       </div>
+//                       <div className="flex items-center space-x-1">
+//                         <BookOpen className="w-4 h-4" />
+//                         <span>{allLessons.find(l => l.lessonKey === currentLessonData.lessonKey)?.sectionTitle}</span>
+//                       </div>
+//                     </div>
+//                   </div>
+//                   <div className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
+//                     {currentIndex + 1}/{allLessons.length}
+//                   </div>
+//                 </div>
 //               </div>
 
-//               <button
-//                 onClick={() => navigateLesson('next')}
-//                 disabled={!canGoNext}
-//                 className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-all duration-200 font-medium ${
-//                   canGoNext 
-//                     ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg hover:shadow-purple-500/25' 
-//                     : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-//                 }`}
-//               >
-//                 <span>Next</span>
-//                 <ArrowRight className="w-4 h-4" />
-//               </button>
+//               {/* Scrollable Content Area */}
+//               <div className="flex-1 overflow-auto">
+//                 <div className="p-8">
+//                   {loadingLessons[currentLessonData.lessonKey] ? (
+//                     <div className="flex flex-col items-center justify-center h-96 space-y-4">
+//                       <div className="relative">
+//                         <div className="w-16 h-16 border-4 border-purple-200 rounded-full"></div>
+//                         <div className="absolute top-0 left-0 w-16 h-16 border-4 border-purple-600 rounded-full border-t-transparent animate-spin"></div>
+//                       </div>
+//                       <div className="text-center">
+//                         <p className="text-gray-700 font-medium">Loading lesson content...</p>
+//                         <p className="text-gray-500 text-sm mt-1">Preparing your learning experience</p>
+//                       </div>
+//                     </div>
+//                   ) : lessonContents[currentLessonData.lessonKey] ? (
+//                     <div className="prose prose-gray prose-lg max-w-none">
+//                       <ReactMarkdown 
+//                         components={{
+//                           h1: ({children}) => (
+//                             <h1 className="text-3xl font-bold text-gray-900 mb-6 pb-4 border-b-2 border-gradient-to-r from-purple-500 to-blue-500" 
+//                                 style={{borderImage: 'linear-gradient(90deg, #8b5cf6, #3b82f6) 1'}}>
+//                               {children}
+//                             </h1>
+//                           ),
+//                           h2: ({children}) => (
+//                             <h2 className="text-2xl font-bold text-gray-800 mt-8 mb-4 flex items-center">
+//                               <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-blue-500 rounded-full mr-3"></div>
+//                               {children}
+//                             </h2>
+//                           ),
+//                           h3: ({children}) => (
+//                             <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3 flex items-center">
+//                               <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
+//                               {children}
+//                             </h3>
+//                           ),
+//                           p: ({children}) => <p className="text-gray-700 leading-relaxed mb-5 text-base">{children}</p>,
+//                           ul: ({children}) => <ul className="text-gray-700 mb-5 pl-6 space-y-2">{children}</ul>,
+//                           ol: ({children}) => <ol className="text-gray-700 mb-5 pl-6 space-y-2">{children}</ol>,
+//                           li: ({children}) => <li className="relative pl-2">{children}</li>,
+//                           code: ({inline, children}) => 
+//                             inline ? 
+//                               <code className="bg-purple-50 text-purple-700 px-2 py-1 rounded-md text-sm font-mono border border-purple-200">{children}</code> :
+//                               <code className="block bg-gray-900 text-green-400 p-6 rounded-xl text-sm font-mono overflow-x-auto mb-6 border border-gray-700 shadow-inner">{children}</code>,
+//                           pre: ({children}) => (
+//                             <div className="relative">
+//                               <pre className="bg-gray-900 rounded-xl p-6 mb-6 overflow-x-auto border border-gray-700 shadow-2xl">{children}</pre>
+//                               <div className="absolute top-4 right-4 flex space-x-1">
+//                                 <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+//                                 <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+//                                 <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+//                               </div>
+//                             </div>
+//                           ),
+//                           blockquote: ({children}) => (
+//                             <blockquote className="border-l-4 border-gradient-to-b from-purple-500 to-blue-500 bg-gradient-to-r from-purple-50 to-blue-50 pl-6 pr-4 py-4 italic text-gray-700 my-6 rounded-r-lg shadow-sm">
+//                               {children}
+//                             </blockquote>
+//                           ),
+//                           strong: ({children}) => <strong className="font-semibold text-gray-900 bg-yellow-100 px-1 rounded">{children}</strong>,
+//                         }}
+//                       >
+//                         {lessonContents[currentLessonData.lessonKey]}
+//                       </ReactMarkdown>
+//                     </div>
+//                   ) : (
+//                     <div className="flex flex-col items-center justify-center h-96 space-y-4">
+//                       <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+//                         <FileText className="w-10 h-10 text-gray-400" />
+//                       </div>
+//                       <div className="text-center">
+//                         <p className="text-gray-700 font-medium">No content available</p>
+//                         <p className="text-gray-500 text-sm">This lesson content couldn't be loaded.</p>
+//                       </div>
+//                     </div>
+//                   )}
+//                 </div>
+//               </div>
+
+//               {/* Content Footer - Action Bar */}
+//               <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-t border-gray-200/50 p-6">
+//                 <div className="flex items-center justify-between">
+//                   <div className="flex items-center space-x-4">
+//                     <button className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg">
+//                       <CheckCircle className="w-4 h-4" />
+//                       <span>Mark Complete</span>
+//                     </button>
+//                     <button className="flex items-center space-x-2 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium transition-all duration-200">
+//                       <Star className="w-4 h-4" />
+//                       <span>Bookmark</span>
+//                     </button>
+//                   </div>
+                  
+//                   <div className="flex items-center space-x-3">
+//                     <button
+//                       onClick={() => navigateLesson('prev')}
+//                       disabled={!canGoPrev}
+//                       className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 font-medium ${
+//                         canGoPrev 
+//                           ? 'bg-slate-200 hover:bg-slate-300 text-slate-700 shadow-md hover:shadow-lg' 
+//                           : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+//                       }`}
+//                     >
+//                       <ArrowLeft className="w-4 h-4" />
+//                       <span>Prev</span>
+//                     </button>
+
+//                     <button
+//                       onClick={() => navigateLesson('next')}
+//                       disabled={!canGoNext}
+//                       className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 font-medium ${
+//                         canGoNext 
+//                           ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg hover:shadow-xl' 
+//                           : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+//                       }`}
+//                     >
+//                       <span>Next</span>
+//                       <ArrowRight className="w-4 h-4" />
+//                     </button>
+//                   </div>
+//                 </div>
+//               </div>
 //             </div>
 //           </div>
 //         </div>
