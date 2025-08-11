@@ -8,7 +8,10 @@ const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
 /** ✅ Enhanced Safe JSON Parser with Retry + Fallback */
 async function safeParseGeminiJSON(rawText, retryFn) {
   try {
-    let cleaned = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+    let cleaned = rawText
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
 
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
@@ -21,7 +24,6 @@ async function safeParseGeminiJSON(rawText, retryFn) {
 
     // ✅ Try parsing
     return JSON.parse(jsonString);
-
   } catch (err) {
     console.error("❌ JSON parse error:", err.message);
 
@@ -85,13 +87,36 @@ exports.generateLessonContent = async (req, res) => {
   try {
     const { topic, lessonTitle } = req.body;
     if (!topic || !lessonTitle) {
-      return res.status(400).json({ message: "Topic and lessonTitle required" });
+      return res
+        .status(400)
+        .json({ message: "Topic and lessonTitle required" });
     }
 
+    
     const prompt = `
-Write a detailed lesson on "${lessonTitle}" for the course "${topic}".
-Return only valid JSON: { "title": "${lessonTitle}", "content": "..." }
-    `;
+You are creating a detailed lesson for the course "${topic}", specifically for the lesson "${lessonTitle}".
+
+Strict Rules:
+- Return ONLY valid JSON in the format:
+{
+  "title": "${lessonTitle}",
+  "content": "..."
+}
+- No extra text, no markdown formatting, no backticks — just valid JSON.
+- The "content" field must contain the complete lesson as a single escaped string.
+
+Lesson Content Requirements:
+- Immediately start teaching the topic without any introductory fluff such as "In this lesson..." or "We will cover...".
+- In-depth theory and core concepts.
+- Real-world examples or case studies.
+- Visualizable explanations (e.g., diagrams, metaphors — described in words).
+- If relevant, include practical syntax, formats, or frameworks.
+- Highlight common mistakes and best practices.
+- Content length: at least 1000–1200 words (~1.5–2 A4 pages) to ensure depth.
+- Tone: engaging, clear, beginner-friendly but still professional.
+
+Ensure all newline characters in the "content" value are properly escaped (\\n) so the JSON is valid.
+`;
 
     const fetchGemini = async () => {
       const result = await model.generateContent(prompt);
@@ -110,11 +135,6 @@ Return only valid JSON: { "title": "${lessonTitle}", "content": "..." }
     res.status(500).json({ message: "Failed to generate lesson content" });
   }
 };
-
-
-
-
-
 
 // const { GoogleGenerativeAI } = require("@google/generative-ai");
 // const dotenv = require("dotenv");
@@ -226,4 +246,3 @@ Return only valid JSON: { "title": "${lessonTitle}", "content": "..." }
 // };
 
 // module.exports = { generateCourse };
-
