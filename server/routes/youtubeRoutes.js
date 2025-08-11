@@ -3,7 +3,6 @@ const { searchVideos, searchPlaylists } = require("../controllers/youtubeControl
 
 const router = express.Router();
 
-router.post("/youtube/search-videos", searchVideos);
-router.post("/youtube/search-playlists", searchPlaylists);
-
+router.post("/search-videos", searchVideos);
+router.post("/search-playlists", searchPlaylists);
 module.exports = router;
