@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
@@ -45,23 +44,51 @@ const CourseView = () => {
   const [currentLessonData, setCurrentLessonData] = useState(null);
 
   // YouTube integration state
-  const [activeModalTab, setActiveModalTab] = useState('content'); // 'content' or 'youtube'
+  const [activeModalTab, setActiveModalTab] = useState("content"); // 'content' or 'youtube'
+  const [playlists, setPlaylists] = useState([]);
+  const [youtubeVideos, setYoutubeVideos] = useState([]);
 
   /** ✅ Fetch Course from MongoDB on Mount */
   useEffect(() => {
-    const fetchCourse = async () => {
+    const fetchCourseAndVideos = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/courses/${courseId}`);
+        // Step 1: Fetch course data
+        const res = await fetch(
+          `http://localhost:5000/api/courses/${courseId}`
+        );
         if (!res.ok) throw new Error("Failed to fetch course data");
         const data = await res.json();
         setCourseData(data);
+
+        // Step 2: Extract query (e.g., course title or topic)
+        const courseTitle = data.title || "React course";
+
+        // Step 3: Fetch YouTube playlists based on course title
+        const ytRes = await fetch(
+          "http://localhost:5000/api/youtube/search-playlists",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              query: courseTitle || "programming",
+            }),
+          }
+        );
+
+        if (!ytRes.ok) throw new Error("Failed to fetch YouTube playlists");
+
+        const ytData = await ytRes.json();
+        setYoutubeVideos(ytData); // Assuming you’ve created this state
       } catch (err) {
         setError(err.message);
       } finally {
         setLoadingCourse(false);
       }
     };
-    fetchCourse();
+
+    fetchCourseAndVideos();
   }, [courseId]);
 
   /** ✅ Get all lessons in order for navigation */
@@ -74,7 +101,9 @@ const CourseView = () => {
           ...lesson,
           sectionId: section.id || `section-${sIndex}`,
           sectionTitle: section.title,
-          lessonKey: `${section.id || `section-${sIndex}`}-${lesson.id || lIndex}`,
+          lessonKey: `${section.id || `section-${sIndex}`}-${
+            lesson.id || lIndex
+          }`,
           globalIndex: allLessons.length,
         });
       });
@@ -82,11 +111,37 @@ const CourseView = () => {
     return allLessons;
   };
 
+  const fetchPlaylists = async (query) => {
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/youtube/search-playlists",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ q: query }),
+        }
+      );
+
+      const data = await response.json();
+      if (data.playlists) {
+        setPlaylists(data.playlists);
+      } else {
+        console.error("No playlists found");
+      }
+    } catch (error) {
+      console.error("Error fetching playlists:", error);
+    }
+  };
+
   /** ✅ Get current lesson index */
   const getCurrentLessonIndex = () => {
     if (!currentLessonData) return -1;
     const allLessons = getAllLessons();
-    return allLessons.findIndex(lesson => lesson.lessonKey === currentLessonData.lessonKey);
+    return allLessons.findIndex(
+      (lesson) => lesson.lessonKey === currentLessonData.lessonKey
+    );
   };
 
   /** ✅ Navigate to next/previous lesson */
@@ -95,7 +150,7 @@ const CourseView = () => {
     const currentIndex = getCurrentLessonIndex();
     let newIndex;
 
-    if (direction === 'next') {
+    if (direction === "next") {
       newIndex = currentIndex + 1;
     } else {
       newIndex = currentIndex - 1;
@@ -118,7 +173,7 @@ const CourseView = () => {
   /** ✅ Open Lesson Modal */
   const openLessonModal = async (lesson, topic, sectionId) => {
     const lessonKey = `${sectionId}-${lesson.id}`;
-    
+
     // Set current lesson data
     const lessonData = {
       ...lesson,
@@ -128,7 +183,7 @@ const CourseView = () => {
     };
     setCurrentLessonData(lessonData);
     setModalOpen(true);
-    setActiveModalTab('content'); // Reset to content tab when opening new lesson
+    setActiveModalTab("content"); // Reset to content tab when opening new lesson
 
     // Skip fetch if already loaded
     if (lessonContents[lessonKey]) return;
@@ -136,11 +191,14 @@ const CourseView = () => {
     setLoadingLessons((prev) => ({ ...prev, [lessonKey]: true }));
 
     try {
-      const res = await fetch("http://localhost:5000/api/courses/generate-lesson-content", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, lessonTitle: lesson.title }),
-      });
+      const res = await fetch(
+        "http://localhost:5000/api/courses/generate-lesson-content",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topic, lessonTitle: lesson.title }),
+        }
+      );
 
       if (!res.ok) throw new Error("Failed to fetch lesson content");
       const data = await res.json();
@@ -164,7 +222,7 @@ const CourseView = () => {
   const closeModal = () => {
     setModalOpen(false);
     setCurrentLessonData(null);
-    setActiveModalTab('content');
+    setActiveModalTab("content");
   };
 
   /** ✅ Handle lesson click */
@@ -179,16 +237,20 @@ const CourseView = () => {
     if (!courseData?.sections) return 0;
     const allLessons = courseData.sections.flatMap((s) => s.lessons || []);
     const completed = allLessons.filter((l) => l.completed).length;
-    return allLessons.length ? Math.round((completed / allLessons.length) * 100) : 0;
+    return allLessons.length
+      ? Math.round((completed / allLessons.length) * 100)
+      : 0;
   };
 
   /** ✅ Handle Back Navigation */
   const handleBack = () => navigate("/");
 
   /** ✅ Loading & Error States */
-  if (loadingCourse) return <div className="text-white p-10">Loading course...</div>;
+  if (loadingCourse)
+    return <div className="text-white p-10">Loading course...</div>;
   if (error) return <div className="text-red-400 p-10">Error: {error}</div>;
-  if (!courseData) return <div className="text-white p-10">No course data found</div>;
+  if (!courseData)
+    return <div className="text-white p-10">No course data found</div>;
 
   const allLessons = getAllLessons();
   const currentIndex = getCurrentLessonIndex();
@@ -219,7 +281,9 @@ const CourseView = () => {
         <div className="lg:col-span-2 space-y-8">
           {/* ✅ Course Overview */}
           <div className="bg-black/30 rounded-2xl p-8 border border-white/10">
-            <h1 className="text-4xl font-bold text-white mb-4">{courseData.title}</h1>
+            <h1 className="text-4xl font-bold text-white mb-4">
+              {courseData.title}
+            </h1>
             <p className="text-white/80 mb-6">{courseData.description}</p>
             <div className="flex items-center space-x-6 text-white/70">
               <div className="flex items-center space-x-2">
@@ -239,13 +303,18 @@ const CourseView = () => {
 
           {/* ✅ Lessons */}
           <div className="bg-black/30 rounded-2xl p-8 border border-white/10">
-            <h2 className="text-2xl font-bold text-white mb-6">Course Content</h2>
+            <h2 className="text-2xl font-bold text-white mb-6">
+              Course Content
+            </h2>
 
             {courseData.sections?.map((section, sIndex) => {
               const sectionId = section.id || `section-${sIndex}`;
 
               return (
-                <div key={sectionId} className="bg-black/20 rounded-xl border border-white/10 mb-4">
+                <div
+                  key={sectionId}
+                  className="bg-black/20 rounded-xl border border-white/10 mb-4"
+                >
                   {/* Section Header */}
                   <button
                     onClick={() => toggleSection(sectionId)}
@@ -256,8 +325,12 @@ const CourseView = () => {
                         {sIndex + 1}
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-white">{section.title}</h3>
-                        <p className="text-white/60 text-sm">{section.lessons?.length} lessons</p>
+                        <h3 className="text-lg font-semibold text-white">
+                          {section.title}
+                        </h3>
+                        <p className="text-white/60 text-sm">
+                          {section.lessons?.length} lessons
+                        </p>
                       </div>
                     </div>
                     {expandedSections[sectionId] ? (
@@ -276,15 +349,28 @@ const CourseView = () => {
                         return (
                           <div key={lessonKey} className="space-y-2">
                             {/* Lesson Item */}
-                                                          <div
+                            <div
                               className="flex justify-between items-center p-4 bg-black/20 rounded-lg hover:bg-black/30 cursor-pointer transition-colors"
-                              onClick={(e) => handleLessonClick(e, lesson, courseData.title, sectionId)}
+                              onClick={(e) =>
+                                handleLessonClick(
+                                  e,
+                                  lesson,
+                                  courseData.title,
+                                  sectionId
+                                )
+                              }
                             >
                               <div className="flex items-center space-x-3">
-                                {lesson.completed ? <CheckCircle className="text-green-400" /> : <Circle className="text-white/40" />}
+                                {lesson.completed ? (
+                                  <CheckCircle className="text-green-400" />
+                                ) : (
+                                  <Circle className="text-white/40" />
+                                )}
                                 <div>
                                   <h4 className="text-white">{lesson.title}</h4>
-                                  <p className="text-white/60 text-sm">{lesson.duration || "N/A"}</p>
+                                  <p className="text-white/60 text-sm">
+                                    {lesson.duration || "N/A"}
+                                  </p>
                                 </div>
                               </div>
                               <div className="flex items-center space-x-2">
@@ -311,11 +397,22 @@ const CourseView = () => {
             <div className="space-y-2 text-white/70">
               <div className="flex justify-between">
                 <span>Total Lessons</span>
-                <span>{courseData.sections.reduce((a, s) => a + (s.lessons?.length || 0), 0)}</span>
+                <span>
+                  {courseData.sections.reduce(
+                    (a, s) => a + (s.lessons?.length || 0),
+                    0
+                  )}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Completed</span>
-                <span>{courseData.sections.reduce((a, s) => a + (s.lessons?.filter((l) => l.completed).length || 0), 0)}</span>
+                <span>
+                  {courseData.sections.reduce(
+                    (a, s) =>
+                      a + (s.lessons?.filter((l) => l.completed).length || 0),
+                    0
+                  )}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Progress</span>
@@ -338,7 +435,9 @@ const CourseView = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-2">
                     <Monitor className="w-5 h-5 text-purple-400" />
-                    <span className="text-white font-semibold">Course Navigation</span>
+                    <span className="text-white font-semibold">
+                      Course Navigation
+                    </span>
                   </div>
                   <button
                     onClick={closeModal}
@@ -347,19 +446,31 @@ const CourseView = () => {
                     <X className="w-5 h-5" />
                   </button>
                 </div>
-                
+
                 {/* Current Lesson Info */}
                 <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-600/30">
-                  <h3 className="text-white font-medium text-sm mb-1">{currentLessonData.title}</h3>
-                  <p className="text-slate-400 text-xs">{allLessons.find(l => l.lessonKey === currentLessonData.lessonKey)?.sectionTitle}</p>
+                  <h3 className="text-white font-medium text-sm mb-1">
+                    {currentLessonData.title}
+                  </h3>
+                  <p className="text-slate-400 text-xs">
+                    {
+                      allLessons.find(
+                        (l) => l.lessonKey === currentLessonData.lessonKey
+                      )?.sectionTitle
+                    }
+                  </p>
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-purple-400 text-xs font-medium">
                       Lesson {currentIndex + 1} of {allLessons.length}
                     </span>
                     <div className="w-16 h-1 bg-slate-700 rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300"
-                        style={{ width: `${((currentIndex + 1) / allLessons.length) * 100}%` }}
+                        style={{
+                          width: `${
+                            ((currentIndex + 1) / allLessons.length) * 100
+                          }%`,
+                        }}
                       ></div>
                     </div>
                   </div>
@@ -368,21 +479,33 @@ const CourseView = () => {
 
               {/* Course Progress - Moved up and made scrollable */}
               <div className="flex-1 p-6 overflow-y-auto">
-                <h4 className="text-white font-medium mb-4 text-sm">Course Progress</h4>
+                <h4 className="text-white font-medium mb-4 text-sm">
+                  Course Progress
+                </h4>
                 <div className="space-y-3">
                   {courseData.sections?.map((section, sIndex) => {
-                    const completedLessons = section.lessons?.filter(l => l.completed).length || 0;
+                    const completedLessons =
+                      section.lessons?.filter((l) => l.completed).length || 0;
                     const totalLessons = section.lessons?.length || 0;
-                    const sectionProgress = totalLessons ? (completedLessons / totalLessons) * 100 : 0;
-                    
+                    const sectionProgress = totalLessons
+                      ? (completedLessons / totalLessons) * 100
+                      : 0;
+
                     return (
-                      <div key={section.id} className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
+                      <div
+                        key={section.id}
+                        className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30"
+                      >
                         <div className="flex justify-between items-center mb-2">
-                          <span className="text-slate-300 text-xs font-medium">{section.title}</span>
-                          <span className="text-slate-400 text-xs">{completedLessons}/{totalLessons}</span>
+                          <span className="text-slate-300 text-xs font-medium">
+                            {section.title}
+                          </span>
+                          <span className="text-slate-400 text-xs">
+                            {completedLessons}/{totalLessons}
+                          </span>
                         </div>
                         <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-300"
                             style={{ width: `${sectionProgress}%` }}
                           ></div>
@@ -412,7 +535,14 @@ const CourseView = () => {
                         </div>
                         <div className="flex items-center space-x-1">
                           <BookOpen className="w-4 h-4" />
-                          <span>{allLessons.find(l => l.lessonKey === currentLessonData.lessonKey)?.sectionTitle}</span>
+                          <span>
+                            {
+                              allLessons.find(
+                                (l) =>
+                                  l.lessonKey === currentLessonData.lessonKey
+                              )?.sectionTitle
+                            }
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -425,22 +555,22 @@ const CourseView = () => {
                 {/* Tab Navigation */}
                 <div className="flex border-b border-gray-200/50">
                   <button
-                    onClick={() => setActiveModalTab('content')}
+                    onClick={() => setActiveModalTab("content")}
                     className={`flex-1 px-6 py-4 font-medium text-sm transition-all duration-200 flex items-center justify-center space-x-2 ${
-                      activeModalTab === 'content' 
-                        ? 'bg-white text-purple-600 border-b-2 border-purple-600 shadow-sm' 
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
+                      activeModalTab === "content"
+                        ? "bg-white text-purple-600 border-b-2 border-purple-600 shadow-sm"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50/50"
                     }`}
                   >
                     <FileText className="w-4 h-4" />
                     <span>Lesson Content</span>
                   </button>
                   <button
-                    onClick={() => setActiveModalTab('youtube')}
+                    onClick={() => setActiveModalTab("youtube")}
                     className={`flex-1 px-6 py-4 font-medium text-sm transition-all duration-200 flex items-center justify-center space-x-2 ${
-                      activeModalTab === 'youtube' 
-                        ? 'bg-white text-red-600 border-b-2 border-red-600 shadow-sm' 
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
+                      activeModalTab === "youtube"
+                        ? "bg-white text-red-600 border-b-2 border-red-600 shadow-sm"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50/50"
                     }`}
                   >
                     <Youtube className="w-4 h-4" />
@@ -451,7 +581,7 @@ const CourseView = () => {
 
               {/* Scrollable Content Area */}
               <div className="flex-1 overflow-auto">
-                {activeModalTab === 'content' && (
+                {activeModalTab === "content" && (
                   <div className="p-8">
                     {loadingLessons[currentLessonData.lessonKey] ? (
                       <div className="flex flex-col items-center justify-center h-96 space-y-4">
@@ -460,43 +590,74 @@ const CourseView = () => {
                           <div className="absolute top-0 left-0 w-16 h-16 border-4 border-purple-600 rounded-full border-t-transparent animate-spin"></div>
                         </div>
                         <div className="text-center">
-                          <p className="text-gray-700 font-medium">Loading lesson content...</p>
-                          <p className="text-gray-500 text-sm mt-1">Preparing your learning experience</p>
+                          <p className="text-gray-700 font-medium">
+                            Loading lesson content...
+                          </p>
+                          <p className="text-gray-500 text-sm mt-1">
+                            Preparing your learning experience
+                          </p>
                         </div>
                       </div>
                     ) : lessonContents[currentLessonData.lessonKey] ? (
                       <div className="prose prose-gray prose-lg max-w-none">
-                        <ReactMarkdown 
+                        <ReactMarkdown
                           components={{
-                            h1: ({children}) => (
-                              <h1 className="text-3xl font-bold text-gray-900 mb-6 pb-4 border-b-2 border-gradient-to-r from-purple-500 to-blue-500" 
-                                  style={{borderImage: 'linear-gradient(90deg, #8b5cf6, #3b82f6) 1'}}>
+                            h1: ({ children }) => (
+                              <h1
+                                className="text-3xl font-bold text-gray-900 mb-6 pb-4 border-b-2 border-gradient-to-r from-purple-500 to-blue-500"
+                                style={{
+                                  borderImage:
+                                    "linear-gradient(90deg, #8b5cf6, #3b82f6) 1",
+                                }}
+                              >
                                 {children}
                               </h1>
                             ),
-                            h2: ({children}) => (
+                            h2: ({ children }) => (
                               <h2 className="text-2xl font-bold text-gray-800 mt-8 mb-4 flex items-center">
                                 <div className="w-1 h-6 bg-gradient-to-b from-purple-500 to-blue-500 rounded-full mr-3"></div>
                                 {children}
                               </h2>
                             ),
-                            h3: ({children}) => (
+                            h3: ({ children }) => (
                               <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3 flex items-center">
                                 <div className="w-2 h-2 bg-purple-500 rounded-full mr-3"></div>
                                 {children}
                               </h3>
                             ),
-                            p: ({children}) => <p className="text-gray-700 leading-relaxed mb-5 text-base">{children}</p>,
-                            ul: ({children}) => <ul className="text-gray-700 mb-5 pl-6 space-y-2">{children}</ul>,
-                            ol: ({children}) => <ol className="text-gray-700 mb-5 pl-6 space-y-2">{children}</ol>,
-                            li: ({children}) => <li className="relative pl-2">{children}</li>,
-                            code: ({inline, children}) => 
-                              inline ? 
-                                <code className="bg-purple-50 text-purple-700 px-2 py-1 rounded-md text-sm font-mono border border-purple-200">{children}</code> :
-                                <code className="block bg-gray-900 text-green-400 p-6 rounded-xl text-sm font-mono overflow-x-auto mb-6 border border-gray-700 shadow-inner">{children}</code>,
-                            pre: ({children}) => (
+                            p: ({ children }) => (
+                              <p className="text-gray-700 leading-relaxed mb-5 text-base">
+                                {children}
+                              </p>
+                            ),
+                            ul: ({ children }) => (
+                              <ul className="text-gray-700 mb-5 pl-6 space-y-2">
+                                {children}
+                              </ul>
+                            ),
+                            ol: ({ children }) => (
+                              <ol className="text-gray-700 mb-5 pl-6 space-y-2">
+                                {children}
+                              </ol>
+                            ),
+                            li: ({ children }) => (
+                              <li className="relative pl-2">{children}</li>
+                            ),
+                            code: ({ inline, children }) =>
+                              inline ? (
+                                <code className="bg-purple-50 text-purple-700 px-2 py-1 rounded-md text-sm font-mono border border-purple-200">
+                                  {children}
+                                </code>
+                              ) : (
+                                <code className="block bg-gray-900 text-green-400 p-6 rounded-xl text-sm font-mono overflow-x-auto mb-6 border border-gray-700 shadow-inner">
+                                  {children}
+                                </code>
+                              ),
+                            pre: ({ children }) => (
                               <div className="relative">
-                                <pre className="bg-gray-900 rounded-xl p-6 mb-6 overflow-x-auto border border-gray-700 shadow-2xl">{children}</pre>
+                                <pre className="bg-gray-900 rounded-xl p-6 mb-6 overflow-x-auto border border-gray-700 shadow-2xl">
+                                  {children}
+                                </pre>
                                 <div className="absolute top-4 right-4 flex space-x-1">
                                   <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                                   <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
@@ -504,12 +665,16 @@ const CourseView = () => {
                                 </div>
                               </div>
                             ),
-                            blockquote: ({children}) => (
+                            blockquote: ({ children }) => (
                               <blockquote className="border-l-4 border-gradient-to-b from-purple-500 to-blue-500 bg-gradient-to-r from-purple-50 to-blue-50 pl-6 pr-4 py-4 italic text-gray-700 my-6 rounded-r-lg shadow-sm">
                                 {children}
                               </blockquote>
                             ),
-                            strong: ({children}) => <strong className="font-semibold text-gray-900 bg-yellow-100 px-1 rounded">{children}</strong>,
+                            strong: ({ children }) => (
+                              <strong className="font-semibold text-gray-900 bg-yellow-100 px-1 rounded">
+                                {children}
+                              </strong>
+                            ),
                           }}
                         >
                           {lessonContents[currentLessonData.lessonKey]}
@@ -521,20 +686,24 @@ const CourseView = () => {
                           <FileText className="w-10 h-10 text-gray-400" />
                         </div>
                         <div className="text-center">
-                          <p className="text-gray-700 font-medium">No content available</p>
-                          <p className="text-gray-500 text-sm">This lesson content couldn't be loaded.</p>
+                          <p className="text-gray-700 font-medium">
+                            No content available
+                          </p>
+                          <p className="text-gray-500 text-sm">
+                            This lesson content couldn't be loaded.
+                          </p>
                         </div>
                       </div>
                     )}
                   </div>
                 )}
 
-                {activeModalTab === 'youtube' && (
+                {activeModalTab === "youtube" && (
                   <div className="p-8">
-                    <YouTubeComponent 
+                    <YouTubeComponent
                       lessonTitle={currentLessonData.title}
                       topic={currentLessonData.topic}
-                      isVisible={activeModalTab === 'youtube'}
+                      isVisible={activeModalTab === "youtube"}
                     />
                   </div>
                 )}
@@ -553,15 +722,15 @@ const CourseView = () => {
                       <span>Bookmark</span>
                     </button>
                   </div>
-                  
+
                   <div className="flex items-center space-x-3">
                     <button
-                      onClick={() => navigateLesson('prev')}
+                      onClick={() => navigateLesson("prev")}
                       disabled={!canGoPrev}
                       className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 font-medium ${
-                        canGoPrev 
-                          ? 'bg-slate-200 hover:bg-slate-300 text-slate-700 shadow-md hover:shadow-lg' 
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        canGoPrev
+                          ? "bg-slate-200 hover:bg-slate-300 text-slate-700 shadow-md hover:shadow-lg"
+                          : "bg-gray-100 text-gray-400 cursor-not-allowed"
                       }`}
                     >
                       <ArrowLeft className="w-4 h-4" />
@@ -569,12 +738,12 @@ const CourseView = () => {
                     </button>
 
                     <button
-                      onClick={() => navigateLesson('next')}
+                      onClick={() => navigateLesson("next")}
                       disabled={!canGoNext}
                       className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 font-medium ${
-                        canGoNext 
-                          ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg hover:shadow-xl' 
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        canGoNext
+                          ? "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg hover:shadow-xl"
+                          : "bg-gray-100 text-gray-400 cursor-not-allowed"
                       }`}
                     >
                       <span>Next</span>
@@ -706,7 +875,7 @@ export default CourseView;
 //   /** ✅ Open Lesson Modal */
 //   const openLessonModal = async (lesson, topic, sectionId) => {
 //     const lessonKey = `${sectionId}-${lesson.id}`;
-    
+
 //     // Set current lesson data
 //     const lessonData = {
 //       ...lesson,
@@ -932,7 +1101,7 @@ export default CourseView;
 //                     <X className="w-5 h-5" />
 //                   </button>
 //                 </div>
-                
+
 //                 {/* Current Lesson Info */}
 //                 <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-600/30">
 //                   <h3 className="text-white font-medium text-sm mb-1">{currentLessonData.title}</h3>
@@ -942,7 +1111,7 @@ export default CourseView;
 //                       Lesson {currentIndex + 1} of {allLessons.length}
 //                     </span>
 //                     <div className="w-16 h-1 bg-slate-700 rounded-full overflow-hidden">
-//                       <div 
+//                       <div
 //                         className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-300"
 //                         style={{ width: `${((currentIndex + 1) / allLessons.length) * 100}%` }}
 //                       ></div>
@@ -959,7 +1128,7 @@ export default CourseView;
 //                     const completedLessons = section.lessons?.filter(l => l.completed).length || 0;
 //                     const totalLessons = section.lessons?.length || 0;
 //                     const sectionProgress = totalLessons ? (completedLessons / totalLessons) * 100 : 0;
-                    
+
 //                     return (
 //                       <div key={section.id} className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
 //                         <div className="flex justify-between items-center mb-2">
@@ -967,7 +1136,7 @@ export default CourseView;
 //                           <span className="text-slate-400 text-xs">{completedLessons}/{totalLessons}</span>
 //                         </div>
 //                         <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
-//                           <div 
+//                           <div
 //                             className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-300"
 //                             style={{ width: `${sectionProgress}%` }}
 //                           ></div>
@@ -1021,10 +1190,10 @@ export default CourseView;
 //                     </div>
 //                   ) : lessonContents[currentLessonData.lessonKey] ? (
 //                     <div className="prose prose-gray prose-lg max-w-none">
-//                       <ReactMarkdown 
+//                       <ReactMarkdown
 //                         components={{
 //                           h1: ({children}) => (
-//                             <h1 className="text-3xl font-bold text-gray-900 mb-6 pb-4 border-b-2 border-gradient-to-r from-purple-500 to-blue-500" 
+//                             <h1 className="text-3xl font-bold text-gray-900 mb-6 pb-4 border-b-2 border-gradient-to-r from-purple-500 to-blue-500"
 //                                 style={{borderImage: 'linear-gradient(90deg, #8b5cf6, #3b82f6) 1'}}>
 //                               {children}
 //                             </h1>
@@ -1045,8 +1214,8 @@ export default CourseView;
 //                           ul: ({children}) => <ul className="text-gray-700 mb-5 pl-6 space-y-2">{children}</ul>,
 //                           ol: ({children}) => <ol className="text-gray-700 mb-5 pl-6 space-y-2">{children}</ol>,
 //                           li: ({children}) => <li className="relative pl-2">{children}</li>,
-//                           code: ({inline, children}) => 
-//                             inline ? 
+//                           code: ({inline, children}) =>
+//                             inline ?
 //                               <code className="bg-purple-50 text-purple-700 px-2 py-1 rounded-md text-sm font-mono border border-purple-200">{children}</code> :
 //                               <code className="block bg-gray-900 text-green-400 p-6 rounded-xl text-sm font-mono overflow-x-auto mb-6 border border-gray-700 shadow-inner">{children}</code>,
 //                           pre: ({children}) => (
@@ -1097,14 +1266,14 @@ export default CourseView;
 //                       <span>Bookmark</span>
 //                     </button>
 //                   </div>
-                  
+
 //                   <div className="flex items-center space-x-3">
 //                     <button
 //                       onClick={() => navigateLesson('prev')}
 //                       disabled={!canGoPrev}
 //                       className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 font-medium ${
-//                         canGoPrev 
-//                           ? 'bg-slate-200 hover:bg-slate-300 text-slate-700 shadow-md hover:shadow-lg' 
+//                         canGoPrev
+//                           ? 'bg-slate-200 hover:bg-slate-300 text-slate-700 shadow-md hover:shadow-lg'
 //                           : 'bg-gray-100 text-gray-400 cursor-not-allowed'
 //                       }`}
 //                     >
@@ -1116,8 +1285,8 @@ export default CourseView;
 //                       onClick={() => navigateLesson('next')}
 //                       disabled={!canGoNext}
 //                       className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 font-medium ${
-//                         canGoNext 
-//                           ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg hover:shadow-xl' 
+//                         canGoNext
+//                           ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg hover:shadow-xl'
 //                           : 'bg-gray-100 text-gray-400 cursor-not-allowed'
 //                       }`}
 //                     >
