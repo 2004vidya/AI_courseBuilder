@@ -18,7 +18,8 @@ const allowedOrigins = [
   "http://localhost:5174",   // local dev
   "http://localhost:3000",   // alternative local dev
   process.env.FRONTEND_URL,  // production frontend URL from env
-  "https://ai-coursebuilder.vercel.app" // fallback Vercel URL
+  "https://ai-coursebuilder.vercel.app", // fallback Vercel URL
+  /\.vercel\.app$/  // Allow any Vercel subdomain
 ].filter(Boolean); // Remove undefined values
 
 app.use(cors({
@@ -26,11 +27,22 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
     }
+
+    // Allow any Vercel subdomain
+    if (origin && origin.match(/https:\/\/.*\.vercel\.app$/)) {
+      return callback(null, true);
+    }
+
+    // Allow in development
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
 }));

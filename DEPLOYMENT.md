@@ -35,7 +35,7 @@ git push origin main
    FRONTEND_URL=https://your-app-name.vercel.app
    ```
 
-6. Deploy and note your Render URL (e.g., `https://your-app-name.onrender.com`)
+6. Deploy and note your Render URL: `https://ai-coursebuilder.onrender.com`
 
 ## 3. Deploy Frontend on Vercel
 
@@ -50,7 +50,7 @@ git push origin main
 
 5. Add Environment Variables in Vercel:
    ```
-   VITE_API_URL=https://your-render-app-name.onrender.com/api
+   VITE_API_URL=https://ai-coursebuilder.onrender.com/api
    ```
 
 6. Deploy
@@ -79,7 +79,7 @@ After getting your Vercel URL, update the backend CORS configuration:
 ## Environment Variables Summary
 
 ### Frontend (Vercel)
-- `VITE_API_URL`: Your Render backend URL + `/api`
+- `VITE_API_URL`: `https://ai-coursebuilder.onrender.com/api`
 
 ### Backend (Render)
 - `MONGO_URI`: MongoDB connection string
