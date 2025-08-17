@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const Quiz = require('../models/quiz.model');
+const Quiz = require('../models/quizzes');
+const { generateQuizContent } = require('../controllers/generateController'); // Import your quiz function
+
+// Generate Quiz Content (NEW)
+router.post('/generate-quiz', generateQuizContent);
 
 // Create Quiz
 router.post('/', async (req, res) => {
