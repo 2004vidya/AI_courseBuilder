@@ -182,7 +182,7 @@ export default function LandingPage() {
               CourseAI
             </span>
           </div>
-          <div className="hidden md:flex space-x-8">
+          <div className="hidden md:flex space-x-20">
             <a
               href="#features"
               className="hover:text-blue-300 transition-colors"
@@ -199,7 +199,7 @@ export default function LandingPage() {
               href="#pricing"
               className="hover:text-blue-300 transition-colors"
             >
-              Pricing
+              
             </a>
           </div>
           <div className="flex items-center space-x-4">

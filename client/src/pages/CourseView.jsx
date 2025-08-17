@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import {
   Play,
@@ -34,14 +34,16 @@ import {
 import YouTubeComponent from "../components/YoutubeComponent";
 
 const CourseView = () => {
-  /** ✅ Get course ID from URL */
+  /** ✅ Get course ID from URL and navigation state */
   const { courseId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation(); // 🔥 Add this to get navigation state
 
-  /** ✅ State */
-  const [courseData, setCourseData] = useState(null);
-  const [loadingCourse, setLoadingCourse] = useState(true);
+  /** ✅ State - Enhanced with transition handling */
+  const [courseData, setCourseData] = useState(location.state?.preloadedCourse || null);
+  const [loadingCourse, setLoadingCourse] = useState(!location.state?.preloadedCourse);
   const [error, setError] = useState(null);
+  const [showTransitionAnimation, setShowTransitionAnimation] = useState(location.state?.fromGeneration || false);
 
   const [activeLesson, setActiveLesson] = useState(null);
   const [lessonContents, setLessonContents] = useState({});
@@ -72,23 +74,27 @@ const CourseView = () => {
   const [showQuizResults, setShowQuizResults] = useState(false);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
 
-  /** ✅ Fetch Course from MongoDB on Mount */
+  /** ✅ Fetch Course from MongoDB on Mount - Enhanced for seamless transition */
   useEffect(() => {
     const fetchCourseAndVideos = async () => {
       try {
-        // Step 1: Fetch course data
-        const res = await fetch(
-          `http://localhost:5000/api/courses/${courseId}`
-        );
-        if (!res.ok) throw new Error("Failed to fetch course data");
-        const data = await res.json();
-        setCourseData(data);
+        // If we have preloaded course data, skip the initial fetch
+        let courseDataToUse = courseData;
+        
+        if (!courseDataToUse) {
+          // Only fetch if we don't have preloaded data
+          const res = await fetch(`http://localhost:5000/api/courses/${courseId}`);
+          if (!res.ok) throw new Error("Failed to fetch course data");
+          const data = await res.json();
+          courseDataToUse = data;
+          setCourseData(data);
+        }
 
         // Initialize completed lessons and bookmarks from course data
         const completed = new Set();
         const bookmarks = new Set();
         
-        data.sections?.forEach((section, sIndex) => {
+        courseDataToUse.sections?.forEach((section, sIndex) => {
           const sectionId = section.id || `section-${sIndex}`;
           section.lessons?.forEach((lesson, lIndex) => {
             const lessonKey = `${sectionId}-${lesson.id || lIndex}`;
@@ -105,7 +111,7 @@ const CourseView = () => {
         setBookmarkedLessons(bookmarks);
 
         // Step 2: Extract query (e.g., course title or topic)
-        const courseTitle = data.title || "React course";
+        const courseTitle = courseDataToUse.title || location.state?.topic || "React course";
 
         // Step 3: Fetch YouTube playlists based on course title
         const ytRes = await fetch(
@@ -116,7 +122,7 @@ const CourseView = () => {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              query: courseTitle || "programming",
+              query: courseTitle,
             }),
           }
         );
@@ -125,6 +131,14 @@ const CourseView = () => {
 
         const ytData = await ytRes.json();
         setYoutubeVideos(ytData);
+        
+        // 🔥 KEY: Delay hiding transition animation to ensure smooth handoff
+        if (showTransitionAnimation) {
+          setTimeout(() => {
+            setShowTransitionAnimation(false);
+          }, 800); // Small delay for smooth transition
+        }
+        
       } catch (err) {
         setError(err.message);
       } finally {
@@ -133,7 +147,7 @@ const CourseView = () => {
     };
 
     fetchCourseAndVideos();
-  }, [courseId]);
+  }, [courseId, courseData, location.state, showTransitionAnimation]);
 
   /** ✅ Update lesson progress in backend */
   const updateLessonProgress = async (lessonKey, updates) => {
@@ -485,12 +499,55 @@ const CourseView = () => {
   /** ✅ Handle Back Navigation */
   const handleBack = () => navigate("/");
 
+  // 🔥 Show transition animation if coming from generation
+  if (showTransitionAnimation || (loadingCourse && !courseData)) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900">
+        <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white rounded-2xl p-12 shadow-2xl text-center border border-white/20">
+          <div className="relative mb-8">
+            {/* Outer spinning ring */}
+            <div className="w-20 h-20 mx-auto border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
+            {/* Inner pulsing circle */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full animate-pulse flex items-center justify-center">
+                <Brain className="h-6 w-6 text-white" />
+              </div>
+            </div>
+          </div>
+          
+          <h3 className="text-2xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            {showTransitionAnimation ? "Preparing Your Course" : "Loading Course"}
+          </h3>
+          <p className="text-gray-300 mb-6">
+            {showTransitionAnimation 
+              ? `Setting up your course on "${location.state?.topic || courseData?.title}"`
+              : "Loading course content..."
+            }
+          </p>
+          
+          {/* Progress indicators */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-center space-x-2 text-sm text-blue-300">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+              <span>Loading course structure...</span>
+            </div>
+            <div className="flex items-center justify-center space-x-2 text-sm text-purple-300">
+              <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+              <span>Initializing lessons...</span>
+            </div>
+            <div className="flex items-center justify-center space-x-2 text-sm text-pink-300">
+              <div className="w-2 h-2 bg-pink-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+              <span>Fetching resources...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   /** ✅ Loading & Error States */
-  if (loadingCourse)
-    return <div className="text-white p-10">Loading course...</div>;
   if (error) return <div className="text-red-400 p-10">Error: {error}</div>;
-  if (!courseData)
-    return <div className="text-white p-10">No course data found</div>;
+  if (!courseData) return <div className="text-white p-10">No course data found</div>;
 
   const allLessons = getAllLessons();
   const currentIndex = getCurrentLessonIndex();
