@@ -56,6 +56,10 @@ app.get("/api", (req, res) => {
   res.json({ message: "Hello from Render backend!" });
 });
 
+app.get("/", (req, res) => {
+  res.send("Backend is working! 🚀 Use /api routes for data.");
+});
+
 // ✅ Use Render's port
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
