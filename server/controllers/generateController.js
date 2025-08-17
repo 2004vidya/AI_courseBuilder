@@ -3,7 +3,7 @@ const Course = require("../models/courses");
 require("dotenv").config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 /** ✅ Enhanced Safe JSON Parser with Retry + Fallback */
 async function safeParseGeminiJSON(rawText, retryFn) {
@@ -136,6 +136,83 @@ Ensure all newline characters in the "content" value are properly escaped (\\n) 
   }
 };
 
+/** ✅ STEP 3: Generate Quiz Content (New Functionality) */
+exports.generateQuizContent = async (req, res) => {
+  try {
+    const { topic, lessonTitle } = req.body;
+    if (!topic || !lessonTitle) {
+      return res
+        .status(400)
+        .json({ message: "Topic and lessonTitle required" });
+    }
+
+    const prompt = `
+You are creating a quiz for the course "${topic}", specifically for the lesson "${lessonTitle}".
+
+Strict Rules:
+- Return ONLY valid JSON in the format:
+{
+  "title": "Quiz: ${lessonTitle}",
+  "questions": [
+    {
+      "id": 1,
+      "question": "Question text here?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswer": 0,
+      "explanation": "Brief explanation of why this is correct"
+    }
+  ]
+}
+- No extra text, no markdown formatting, no backticks — just valid JSON.
+- Generate exactly 5 multiple-choice questions per quiz.
+- Each question should have 4 options (A, B, C, D).
+- correctAnswer should be the index (0-3) of the correct option.
+- Include a brief explanation for each correct answer.
+
+Quiz Content Requirements:
+- Questions should test understanding of key concepts from the lesson.
+- Mix of difficulty levels: 2 easy, 2 medium, 1 challenging question.
+- Avoid trick questions or overly complex wording.
+- Focus on practical application and conceptual understanding.
+- Questions should be clear, unambiguous, and relevant to the lesson topic.
+- Explanations should reinforce learning and clarify misconceptions.
+
+Ensure all text is properly escaped for valid JSON format.
+`;
+
+    const fetchGemini = async () => {
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    };
+
+    const rawText = await fetchGemini();
+    const parsed = await safeParseGeminiJSON(rawText, fetchGemini); // ✅ retry enabled
+
+    // ✅ Fallback for quiz-specific parsing errors
+    if (!parsed.questions || !Array.isArray(parsed.questions)) {
+      return res.status(200).json({
+        title: `Quiz: ${lessonTitle}`,
+        questions: [
+          {
+            id: 1,
+            question: "Quiz content could not be generated properly. Please try again.",
+            options: ["Option A", "Option B", "Option C", "Option D"],
+            correctAnswer: 0,
+            explanation: "This is a fallback question due to generation error."
+          }
+        ]
+      });
+    }
+
+    res.status(200).json({
+      title: parsed.title || `Quiz: ${lessonTitle}`,
+      questions: parsed.questions
+    });
+  } catch (error) {
+    console.error("❌ Quiz content error:", error.message);
+    res.status(500).json({ message: "Failed to generate quiz content" });
+  }
+};
 // const { GoogleGenerativeAI } = require("@google/generative-ai");
 // const dotenv = require("dotenv");
 // const { v4:uuidv4 } = require("uuid");
