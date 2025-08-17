@@ -39,6 +39,9 @@ const CourseView = () => {
   const navigate = useNavigate();
   const location = useLocation(); // 🔥 Add this to get navigation state
 
+  // ✅ API URL from environment variables
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
   /** ✅ State - Enhanced with transition handling */
   const [courseData, setCourseData] = useState(location.state?.preloadedCourse || null);
   const [loadingCourse, setLoadingCourse] = useState(!location.state?.preloadedCourse);
@@ -83,7 +86,7 @@ const CourseView = () => {
         
         if (!courseDataToUse) {
           // Only fetch if we don't have preloaded data
-          const res = await fetch(`http://localhost:5000/api/courses/${courseId}`);
+          const res = await fetch(`${API_URL}/courses/${courseId}`);
           if (!res.ok) throw new Error("Failed to fetch course data");
           const data = await res.json();
           courseDataToUse = data;
@@ -115,7 +118,7 @@ const CourseView = () => {
 
         // Step 3: Fetch YouTube playlists based on course title
         const ytRes = await fetch(
-          "http://localhost:5000/api/youtube/search-playlists",
+          `${API_URL}/youtube/search-playlists`,
           {
             method: "POST",
             headers: {
@@ -158,7 +161,7 @@ const CourseView = () => {
       const [sectionId, lessonId] = lessonKey.split('-');
       
       const response = await fetch(
-        `http://localhost:5000/api/courses/${courseId}/lesson/progress`,
+        `${API_URL}/courses/${courseId}/lesson/progress`,
         {
           method: "PUT",
           headers: {
@@ -272,7 +275,7 @@ const CourseView = () => {
   const fetchPlaylists = async (query) => {
     try {
       const response = await fetch(
-        "http://localhost:5000/api/youtube/search-playlists",
+        `${API_URL}/youtube/search-playlists`,
         {
           method: "POST",
           headers: {
@@ -301,7 +304,7 @@ const CourseView = () => {
 
     try {
       const res = await fetch(
-        "http://localhost:5000/api/quiz/generate-quiz",
+        `${API_URL}/quiz/generate-quiz`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -441,7 +444,7 @@ const CourseView = () => {
 
     try {
       const res = await fetch(
-        "http://localhost:5000/api/courses/generate-lesson-content",
+        `${API_URL}/courses/generate-lesson-content`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

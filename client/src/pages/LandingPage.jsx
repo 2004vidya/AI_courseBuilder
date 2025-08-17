@@ -28,13 +28,14 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
- const handleGenerateCourse = async () => {
+const handleGenerateCourse = async () => {
   if (!courseInput.trim()) return;
 
   setIsGenerating(true);
 
   try {
-    const response = await fetch("http://localhost:5000/api/generate-course-structure", {
+    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+    const response = await fetch(`${API_URL}/generate-course-structure`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topic: courseInput }),
@@ -47,17 +48,26 @@ export default function LandingPage() {
       dispatch(setCourseData(data.course));
 
       // ✅ Navigate to correct course page with ID
-      navigate(`/course/${data.course._id}`);
+      // 🔥 KEY FIX: Navigate with state to maintain loading animation
+      navigate(`/course/${data.course._id}`, {
+        state: { 
+          preloadedCourse: data.course,
+          fromGeneration: true,
+          topic: courseInput 
+        }
+      });
       
       console.log("✅ Navigating to course:", data.course._id);
     } else {
       console.error("❌ Invalid response format:", data);
+      setIsGenerating(false); // Only stop animation on error
     }
   } catch (error) {
     console.error("❌ Error generating course:", error);
-  } finally {
-    setIsGenerating(false);
+    setIsGenerating(false); // Only stop animation on error
   }
+  // 🔥 IMPORTANT: Don't call setIsGenerating(false) on success
+  // Let the CourseView component handle the transition
 };
 
   const handleRegister = async () => {
