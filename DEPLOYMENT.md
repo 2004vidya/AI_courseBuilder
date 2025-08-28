@@ -30,6 +30,7 @@ git push origin main
    ```
    MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/database_name
    GEMINI_API_KEY=your_gemini_api_key_here
+   YOUTUBE_API_KEY=your_youtube_api_key_here
    JWT_SECRET=your_jwt_secret_here
    NODE_ENV=production
    FRONTEND_URL=https://your-app-name.vercel.app
@@ -84,6 +85,7 @@ After getting your Vercel URL, update the backend CORS configuration:
 ### Backend (Render)
 - `MONGO_URI`: MongoDB connection string
 - `GEMINI_API_KEY`: Google Gemini API key
+- `YOUTUBE_API_KEY`: YouTube Data API v3 key
 - `JWT_SECRET`: Random secret string for JWT
 - `NODE_ENV`: `production`
 - `FRONTEND_URL`: Your Vercel frontend URL

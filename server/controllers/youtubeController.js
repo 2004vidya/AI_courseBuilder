@@ -9,6 +9,14 @@ exports.searchVideos = async (req, res) => {
   const { query, maxResults = 6 } = req.body;
   if (!query) return res.status(400).json({ error: "Query is required" });
 
+  // ✅ Check if YouTube API key is configured
+  if (!YT_API_KEY) {
+    return res.status(500).json({
+      error: "YouTube API key not configured",
+      details: "YOUTUBE_API_KEY environment variable is missing"
+    });
+  }
+
   try {
     const { data } = await axios.get(`${BASE_URL}/search`, {
       params: {
@@ -39,6 +47,14 @@ exports.searchVideos = async (req, res) => {
 exports.searchPlaylists = async (req, res) => {
   const { query, maxResults = 4 } = req.body;
   if (!query) return res.status(400).json({ error: "Query is required" });
+
+  // ✅ Check if YouTube API key is configured
+  if (!YT_API_KEY) {
+    return res.status(500).json({
+      error: "YouTube API key not configured",
+      details: "YOUTUBE_API_KEY environment variable is missing"
+    });
+  }
 
   try {
     const { data } = await axios.get(`${BASE_URL}/search`, {

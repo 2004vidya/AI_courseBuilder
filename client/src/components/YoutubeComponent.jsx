@@ -20,22 +20,25 @@ const YouTubeComponent = ({ lessonTitle, topic, isVisible }) => {
   const fetchYouTubeContent = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
+      // ✅ Use environment variable for API URL
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
       // Fetch both videos and playlists
       const [videosRes, playlistsRes] = await Promise.all([
-        fetch('http://localhost:5000/api/youtube/search-videos', {
+        fetch(`${API_URL}/youtube/search-videos`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             query: `${topic} ${lessonTitle}`,
             maxResults: 6
           })
         }),
-        fetch('http://localhost:5000/api/youtube/search-playlists', {
+        fetch(`${API_URL}/youtube/search-playlists`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             query: `${topic} tutorial`,
             maxResults: 4
           })
